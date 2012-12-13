@@ -1,0 +1,1 @@
+tmpi_debug.o: tmpi_debug.c tmpi_debug.h

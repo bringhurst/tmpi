@@ -1,0 +1,10 @@
+TMPI_HOME = $(HOME)/mpi/tmpi/runtime/src
+OPT = -O3 -Wall
+# OPT = -O2 -Wall
+# OPT = -g -Wall
+MAKEFLAGS = --no-print-directory
+TARGET_LIB_STATIC = $(TMPI_HOME)/../lib/libtmpi.a
+TARGET_LIB_DYNAMIC = $(TMPI_HOME)/../lib/libtmpi.so
+# TARGET_LIB = $(TARGET_LIB_STATIC) $(TARGET_LIB_DYNAMIC)
+TARGET_LIB = $(TARGET_LIB_STATIC)
+DEPENDFLAG=-MM

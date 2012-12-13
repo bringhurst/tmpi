@@ -1,0 +1,105 @@
+SHELL = /bin/tcsh
+# CC=$(HOME)/mpi/sys/noshare_O2/bin/mpicc
+CC=$(HOME)/mpi/sys/share_O2/bin/mpicc
+# CC=mpicc
+
+ifeq ($(origin OPT), undefined)
+OPT = -O2 -Wall
+endif
+
+INC = -I.
+CFLAGS = $(OPT) $(INC)
+LIB = 
+
+SRC = $(wildcard *.c)
+OBJ = $(SRC:.c=.mpi.o)
+
+TARGET = gene_test.mpi bar_test.mpi bcast_test1.mpi bcast_test2.mpi bcast_test3.mpi reduce_test1.mpi reduce_test2.mpi reduce_test3.mpi allreduce.mpi pp.mpi pp_dat.mpi ow_dat.mpi
+
+.PHONY : default all clean FORCE
+
+default all : build $(TARGET)
+	@touch build
+	@echo `date` >>build
+
+build : Makefile
+	@$(MAKE) clean
+
+clean : FORCE
+	@- \rm -f *~
+	@- \rm -f $(TARGET) $(OBJ)
+	@- \rm -f *.mgp *.pg
+
+FORCE : ;
+
+gene_test.mpi: gene_test.mpi.o
+	$(CC) $(CFLAGS) $+ -o $@ $(LIB)
+
+allreduce.mpi: allreduce.mpi.o
+	$(CC) $(CFLAGS) $+ -o $@ $(LIB)
+
+reduce_test3.mpi: reduce_test3.mpi.o
+	$(CC) $(CFLAGS) $+ -o $@ $(LIB)
+
+reduce_test2.mpi: reduce_test2.mpi.o
+	$(CC) $(CFLAGS) $+ -o $@ $(LIB)
+
+reduce_test1.mpi: reduce_test1.mpi.o
+	$(CC) $(CFLAGS) $+ -o $@ $(LIB)
+
+bar_test.mpi: bar_test.mpi.o
+	$(CC) $(CFLAGS) $+ -o $@ $(LIB)
+
+bcast_test1.mpi: bcast_test1.mpi.o
+	$(CC) $(CFLAGS) $+ -o $@ $(LIB)
+
+bcast_test2.mpi: bcast_test2.mpi.o
+	$(CC) $(CFLAGS) $+ -o $@ $(LIB)
+
+bcast_test3.mpi: bcast_test3.mpi.o
+	$(CC) $(CFLAGS) $+ -o $@ $(LIB)
+
+pp_dat.mpi: pp_dat.mpi.o
+	$(CC) $(CFLAGS) $+ -o $@ $(LIB)
+
+ow_dat.mpi: ow_dat.mpi.o
+	$(CC) $(CFLAGS) $+ -o $@ $(LIB)
+
+pp.mpi: pp.mpi.o
+	$(CC) $(CFLAGS) $+ -o $@ $(LIB)
+
+gene_test.mpi.o : gene_test.c
+	$(CC) $(CFLAGS) -c $? -o $@
+
+bar_test.mpi.o : bar_test.c
+	$(CC) $(CFLAGS) -c $? -o $@
+
+bcast_test1.mpi.o : bcast_test1.c
+	$(CC) $(CFLAGS) -c $? -o $@
+
+bcast_test2.mpi.o : bcast_test2.c
+	$(CC) $(CFLAGS) -c $? -o $@
+
+bcast_test3.mpi.o : bcast_test3.c
+	$(CC) $(CFLAGS) -c $? -o $@
+
+reduce_test1.mpi.o : reduce_test1.c
+	$(CC) $(CFLAGS) -c $? -o $@
+
+reduce_test2.mpi.o : reduce_test2.c
+	$(CC) $(CFLAGS) -c $? -o $@
+
+reduce_test3.mpi.o : reduce_test3.c
+	$(CC) $(CFLAGS) -c $? -o $@
+
+allreduce.mpi.o : allreduce.c
+	$(CC) $(CFLAGS) -c $? -o $@
+
+pp.mpi.o : pp.c
+	$(CC) $(CFLAGS) -c $? -o $@
+
+pp_dat.mpi.o : pp_dat.c
+	$(CC) $(CFLAGS) -c $? -o $@
+
+ow_dat.mpi.o : ow_dat.c
+	$(CC) $(CFLAGS) -c $? -o $@

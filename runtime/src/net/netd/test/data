@@ -1,0 +1,194 @@
+Ping Pong (short), size=4, iteration=1000, single round trip=319.129730us, rate=0.025068MB.
+Ping Pong (short), size=8, iteration=1000, single round trip=307.833930us, rate=0.051976MB.
+Ping Pong (short), size=12, iteration=1000, single round trip=307.976300us, rate=0.077928MB.
+Ping Pong (short), size=16, iteration=1000, single round trip=325.130508us, rate=0.098422MB.
+Ping Pong (short), size=20, iteration=1000, single round trip=349.216293us, rate=0.114542MB.
+Ping Pong (short), size=24, iteration=1000, single round trip=331.401685us, rate=0.144839MB.
+Ping Pong (short), size=28, iteration=1000, single round trip=344.498815us, rate=0.162555MB.
+Ping Pong (short), size=32, iteration=1000, single round trip=358.782737us, rate=0.178381MB.
+Ping Pong (short), size=36, iteration=1000, single round trip=322.081572us, rate=0.223546MB.
+Ping Pong (short), size=40, iteration=1000, single round trip=323.431893us, rate=0.247347MB.
+Ping Pong (short), size=44, iteration=1000, single round trip=327.749852us, rate=0.268497MB.
+Ping Pong (short), size=48, iteration=1000, single round trip=338.692080us, rate=0.283443MB.
+Ping Pong (short), size=52, iteration=1000, single round trip=328.564358us, rate=0.316529MB.
+Ping Pong (short), size=56, iteration=1000, single round trip=348.331248us, rate=0.321533MB.
+Ping Pong (short), size=60, iteration=1000, single round trip=340.300802us, rate=0.352629MB.
+Ping Pong (short), size=64, iteration=1000, single round trip=347.350093us, rate=0.368504MB.
+Ping Pong (short), size=72, iteration=1000, single round trip=359.804037us, rate=0.400218MB.
+Ping Pong (short), size=80, iteration=1000, single round trip=357.376498us, rate=0.447707MB.
+Ping Pong (short), size=88, iteration=1000, single round trip=353.274207us, rate=0.498197MB.
+Ping Pong (short), size=96, iteration=1000, single round trip=359.406313us, rate=0.534214MB.
+Ping Pong (short), size=104, iteration=1000, single round trip=376.361370us, rate=0.552660MB.
+Ping Pong (short), size=112, iteration=1000, single round trip=390.091173us, rate=0.574225MB.
+Ping Pong (short), size=120, iteration=1000, single round trip=371.898008us, rate=0.645338MB.
+Ping Pong (short), size=128, iteration=1000, single round trip=367.445252us, rate=0.696702MB.
+Ping Pong (short), size=144, iteration=1000, single round trip=392.164508us, rate=0.734386MB.
+Ping Pong (short), size=160, iteration=1000, single round trip=416.044208us, rate=0.769149MB.
+Ping Pong (short), size=176, iteration=1000, single round trip=396.892393us, rate=0.886890MB.
+Ping Pong (short), size=192, iteration=1000, single round trip=465.884095us, rate=0.824239MB.
+Ping Pong (short), size=208, iteration=1000, single round trip=411.079020us, rate=1.011971MB.
+Ping Pong (short), size=224, iteration=1000, single round trip=422.558528us, rate=1.060208MB.
+Ping Pong (short), size=240, iteration=1000, single round trip=455.455503us, rate=1.053890MB.
+Ping Pong (short), size=256, iteration=1000, single round trip=462.983187us, rate=1.105872MB.
+Ping Pong (short), size=288, iteration=1000, single round trip=465.336608us, rate=1.237814MB.
+Ping Pong (short), size=320, iteration=1000, single round trip=478.371177us, rate=1.337873MB.
+Ping Pong (short), size=352, iteration=1000, single round trip=480.033860us, rate=1.466563MB.
+Ping Pong (short), size=384, iteration=1000, single round trip=494.069082us, rate=1.554438MB.
+Ping Pong (short), size=416, iteration=1000, single round trip=521.846138us, rate=1.594340MB.
+Ping Pong (short), size=448, iteration=1000, single round trip=543.172335us, rate=1.649569MB.
+Ping Pong (short), size=480, iteration=1000, single round trip=550.856402us, rate=1.742741MB.
+Ping Pong (short), size=512, iteration=1000, single round trip=569.258547us, rate=1.798831MB.
+Ping Pong (short), size=576, iteration=1000, single round trip=621.102320us, rate=1.854767MB.
+Ping Pong (short), size=640, iteration=1000, single round trip=644.682630us, rate=1.985473MB.
+Ping Pong (short), size=704, iteration=1000, single round trip=663.051852us, rate=2.123514MB.
+Ping Pong (short), size=768, iteration=1000, single round trip=703.610940us, rate=2.183025MB.
+Ping Pong (short), size=832, iteration=1000, single round trip=744.254772us, rate=2.235794MB.
+Ping Pong (short), size=896, iteration=1000, single round trip=763.548267us, rate=2.346937MB.
+Ping Pong (short), size=960, iteration=1000, single round trip=785.411092us, rate=2.444580MB.
+Ping Pong (short), size=1024, iteration=1000, single round trip=825.652552us, rate=2.480462MB.
+Ping Pong (long), size=4096, iteration=100, transfer rate=4.868226MB/s.
+Ping Pong (long), size=8192, iteration=100, transfer rate=6.555159MB/s.
+Ping Pong (long), size=12288, iteration=100, transfer rate=7.183649MB/s.
+Ping Pong (long), size=16384, iteration=100, transfer rate=7.535341MB/s.
+Ping Pong (long), size=20480, iteration=100, transfer rate=7.704518MB/s.
+Ping Pong (long), size=24576, iteration=100, transfer rate=7.881783MB/s.
+Ping Pong (long), size=28672, iteration=100, transfer rate=8.047529MB/s.
+Ping Pong (long), size=32768, iteration=100, transfer rate=8.013179MB/s.
+Ping Pong (long), size=36864, iteration=100, transfer rate=8.214848MB/s.
+Ping Pong (long), size=40960, iteration=100, transfer rate=8.255984MB/s.
+Ping Pong (long), size=45056, iteration=100, transfer rate=8.312755MB/s.
+Ping Pong (long), size=49152, iteration=100, transfer rate=8.263728MB/s.
+Ping Pong (long), size=53248, iteration=100, transfer rate=8.385754MB/s.
+Ping Pong (long), size=57344, iteration=100, transfer rate=8.417952MB/s.
+Ping Pong (long), size=61440, iteration=100, transfer rate=8.460334MB/s.
+Ping Pong (long), size=65536, iteration=100, transfer rate=8.520564MB/s.
+Ping Pong (long), size=73728, iteration=100, transfer rate=8.532308MB/s.
+Ping Pong (long), size=81920, iteration=100, transfer rate=8.664726MB/s.
+Ping Pong (long), size=90112, iteration=100, transfer rate=8.715833MB/s.
+Ping Pong (long), size=98304, iteration=100, transfer rate=8.764401MB/s.
+Ping Pong (long), size=106496, iteration=100, transfer rate=8.816930MB/s.
+Ping Pong (long), size=114688, iteration=100, transfer rate=8.851558MB/s.
+Ping Pong (long), size=122880, iteration=100, transfer rate=8.878338MB/s.
+Ping Pong (long), size=131072, iteration=100, transfer rate=8.913812MB/s.
+Ping Pong (very long), size=147456, iteration=20, transfer rate=8.953773MB/s.
+Ping Pong (very long), size=163840, iteration=20, transfer rate=8.999297MB/s.
+Ping Pong (very long), size=180224, iteration=20, transfer rate=9.022040MB/s.
+Ping Pong (very long), size=196608, iteration=20, transfer rate=9.042524MB/s.
+Ping Pong (very long), size=212992, iteration=20, transfer rate=8.966585MB/s.
+Ping Pong (very long), size=229376, iteration=20, transfer rate=9.074488MB/s.
+Ping Pong (very long), size=245760, iteration=20, transfer rate=9.094164MB/s.
+Ping Pong (very long), size=262144, iteration=20, transfer rate=9.103416MB/s.
+Ping Pong (very long), size=294912, iteration=20, transfer rate=9.127371MB/s.
+Ping Pong (very long), size=327680, iteration=20, transfer rate=9.130363MB/s.
+Ping Pong (very long), size=360448, iteration=20, transfer rate=9.151373MB/s.
+Ping Pong (very long), size=393216, iteration=20, transfer rate=9.162541MB/s.
+Ping Pong (very long), size=425984, iteration=20, transfer rate=9.170029MB/s.
+Ping Pong (very long), size=458752, iteration=20, transfer rate=9.181162MB/s.
+Ping Pong (very long), size=491520, iteration=20, transfer rate=9.193392MB/s.
+Ping Pong (very long), size=524288, iteration=20, transfer rate=9.200234MB/s.
+Ping Pong (very long), size=589824, iteration=20, transfer rate=9.213205MB/s.
+Ping Pong (very long), size=655360, iteration=20, transfer rate=9.223150MB/s.
+Ping Pong (very long), size=720896, iteration=20, transfer rate=9.234915MB/s.
+Ping Pong (very long), size=786432, iteration=20, transfer rate=9.246348MB/s.
+Ping Pong (very long), size=851968, iteration=20, transfer rate=9.257972MB/s.
+Ping Pong (very long), size=917504, iteration=20, transfer rate=9.268562MB/s.
+Ping Pong (very long), size=983040, iteration=20, transfer rate=9.274944MB/s.
+Ping Pong (very long), size=1048576, iteration=20, transfer rate=9.282111MB/s.
+master exiting normally
+node41% pp_dat   
+Ping Pong (short), size=4, iteration=1000, single round trip=240.702092us, rate=0.033236MB.
+Ping Pong (short), size=8, iteration=1000, single round trip=244.467330us, rate=0.065448MB.
+Ping Pong (short), size=12, iteration=1000, single round trip=250.185718us, rate=0.095929MB.
+Ping Pong (short), size=16, iteration=1000, single round trip=245.067155us, rate=0.130576MB.
+Ping Pong (short), size=20, iteration=1000, single round trip=278.067403us, rate=0.143850MB.
+Ping Pong (short), size=24, iteration=1000, single round trip=257.726868us, rate=0.186244MB.
+Ping Pong (short), size=28, iteration=1000, single round trip=250.004840us, rate=0.223996MB.
+Ping Pong (short), size=32, iteration=1000, single round trip=241.948708us, rate=0.264519MB.
+Ping Pong (short), size=36, iteration=1000, single round trip=251.879413us, rate=0.285851MB.
+Ping Pong (short), size=40, iteration=1000, single round trip=249.075717us, rate=0.321187MB.
+Ping Pong (short), size=44, iteration=1000, single round trip=267.491492us, rate=0.328982MB.
+Ping Pong (short), size=48, iteration=1000, single round trip=283.531675us, rate=0.338587MB.
+Ping Pong (short), size=52, iteration=1000, single round trip=271.167642us, rate=0.383527MB.
+Ping Pong (short), size=56, iteration=1000, single round trip=258.810135us, rate=0.432750MB.
+Ping Pong (short), size=60, iteration=1000, single round trip=282.050853us, rate=0.425455MB.
+Ping Pong (short), size=64, iteration=1000, single round trip=281.389800us, rate=0.454885MB.
+Ping Pong (short), size=72, iteration=1000, single round trip=267.161713us, rate=0.538999MB.
+Ping Pong (short), size=80, iteration=1000, single round trip=271.962610us, rate=0.588316MB.
+Ping Pong (short), size=88, iteration=1000, single round trip=298.835460us, rate=0.588953MB.
+Ping Pong (short), size=96, iteration=1000, single round trip=286.815425us, rate=0.669420MB.
+Ping Pong (short), size=104, iteration=1000, single round trip=284.832310us, rate=0.730254MB.
+Ping Pong (short), size=112, iteration=1000, single round trip=286.214400us, rate=0.782630MB.
+Ping Pong (short), size=120, iteration=1000, single round trip=295.386320us, rate=0.812495MB.
+Ping Pong (short), size=128, iteration=1000, single round trip=321.597748us, rate=0.796025MB.
+Ping Pong (short), size=144, iteration=1000, single round trip=303.321908us, rate=0.949486MB.
+Ping Pong (short), size=160, iteration=1000, single round trip=311.897730us, rate=1.025977MB.
+Ping Pong (short), size=176, iteration=1000, single round trip=337.174435us, rate=1.043970MB.
+Ping Pong (short), size=192, iteration=1000, single round trip=330.030635us, rate=1.163528MB.
+Ping Pong (short), size=208, iteration=1000, single round trip=347.932440us, rate=1.195634MB.
+Ping Pong (short), size=224, iteration=1000, single round trip=352.612687us, rate=1.270516MB.
+Ping Pong (short), size=240, iteration=1000, single round trip=367.094240us, rate=1.307566MB.
+Ping Pong (short), size=256, iteration=1000, single round trip=356.582985us, rate=1.435851MB.
+Ping Pong (short), size=288, iteration=1000, single round trip=387.901775us, rate=1.484912MB.
+Ping Pong (short), size=320, iteration=1000, single round trip=418.036403us, rate=1.530967MB.
+Ping Pong (short), size=352, iteration=1000, single round trip=410.115695us, rate=1.716589MB.
+Ping Pong (short), size=384, iteration=1000, single round trip=443.321695us, rate=1.732376MB.
+Ping Pong (short), size=416, iteration=1000, single round trip=467.126602us, rate=1.781102MB.
+Ping Pong (short), size=448, iteration=1000, single round trip=471.763505us, rate=1.899257MB.
+Ping Pong (short), size=480, iteration=1000, single round trip=487.394698us, rate=1.969656MB.
+Ping Pong (short), size=512, iteration=1000, single round trip=493.619315us, rate=2.074473MB.
+Ping Pong (short), size=576, iteration=1000, single round trip=532.010212us, rate=2.165372MB.
+Ping Pong (short), size=640, iteration=1000, single round trip=566.645965us, rate=2.258906MB.
+Ping Pong (short), size=704, iteration=1000, single round trip=594.713205us, rate=2.367528MB.
+Ping Pong (short), size=768, iteration=1000, single round trip=625.407703us, rate=2.455998MB.
+Ping Pong (short), size=832, iteration=1000, single round trip=647.969563us, rate=2.568022MB.
+Ping Pong (short), size=896, iteration=1000, single round trip=683.311975us, rate=2.622521MB.
+Ping Pong (short), size=960, iteration=1000, single round trip=712.993930us, rate=2.692870MB.
+Ping Pong (short), size=1024, iteration=1000, single round trip=754.231783us, rate=2.715346MB.
+Ping Pong (long), size=4096, iteration=100, transfer rate=5.465738MB/s.
+Ping Pong (long), size=8192, iteration=100, transfer rate=6.650151MB/s.
+Ping Pong (long), size=12288, iteration=100, transfer rate=7.576238MB/s.
+Ping Pong (long), size=16384, iteration=100, transfer rate=7.986271MB/s.
+Ping Pong (long), size=20480, iteration=100, transfer rate=8.142716MB/s.
+Ping Pong (long), size=24576, iteration=100, transfer rate=8.382355MB/s.
+Ping Pong (long), size=28672, iteration=100, transfer rate=8.529279MB/s.
+Ping Pong (long), size=32768, iteration=100, transfer rate=8.630216MB/s.
+Ping Pong (long), size=36864, iteration=100, transfer rate=8.724063MB/s.
+Ping Pong (long), size=40960, iteration=100, transfer rate=8.760083MB/s.
+Ping Pong (long), size=45056, iteration=100, transfer rate=8.814943MB/s.
+Ping Pong (long), size=49152, iteration=100, transfer rate=8.782443MB/s.
+Ping Pong (long), size=53248, iteration=100, transfer rate=8.911998MB/s.
+Ping Pong (long), size=57344, iteration=100, transfer rate=8.950997MB/s.
+Ping Pong (long), size=61440, iteration=100, transfer rate=8.965409MB/s.
+Ping Pong (long), size=65536, iteration=100, transfer rate=9.007816MB/s.
+Ping Pong (long), size=73728, iteration=100, transfer rate=9.036499MB/s.
+Ping Pong (long), size=81920, iteration=100, transfer rate=9.083745MB/s.
+Ping Pong (long), size=90112, iteration=100, transfer rate=9.092004MB/s.
+Ping Pong (long), size=98304, iteration=100, transfer rate=9.130631MB/s.
+Ping Pong (long), size=106496, iteration=100, transfer rate=9.159425MB/s.
+Ping Pong (long), size=114688, iteration=100, transfer rate=9.173590MB/s.
+Ping Pong (long), size=122880, iteration=100, transfer rate=9.185034MB/s.
+Ping Pong (long), size=131072, iteration=100, transfer rate=9.201224MB/s.
+Ping Pong (very long), size=147456, iteration=20, transfer rate=9.221914MB/s.
+Ping Pong (very long), size=163840, iteration=20, transfer rate=9.237327MB/s.
+Ping Pong (very long), size=180224, iteration=20, transfer rate=9.253353MB/s.
+Ping Pong (very long), size=196608, iteration=20, transfer rate=9.266816MB/s.
+Ping Pong (very long), size=212992, iteration=20, transfer rate=9.273788MB/s.
+Ping Pong (very long), size=229376, iteration=20, transfer rate=9.282712MB/s.
+Ping Pong (very long), size=245760, iteration=20, transfer rate=9.294042MB/s.
+Ping Pong (very long), size=262144, iteration=20, transfer rate=9.287432MB/s.
+Ping Pong (very long), size=294912, iteration=20, transfer rate=9.310871MB/s.
+Ping Pong (very long), size=327680, iteration=20, transfer rate=9.315535MB/s.
+Ping Pong (very long), size=360448, iteration=20, transfer rate=9.325526MB/s.
+Ping Pong (very long), size=393216, iteration=20, transfer rate=9.333125MB/s.
+Ping Pong (very long), size=425984, iteration=20, transfer rate=9.333269MB/s.
+Ping Pong (very long), size=458752, iteration=20, transfer rate=9.342592MB/s.
+Ping Pong (very long), size=491520, iteration=20, transfer rate=9.347589MB/s.
+Ping Pong (very long), size=524288, iteration=20, transfer rate=9.345256MB/s.
+Ping Pong (very long), size=589824, iteration=20, transfer rate=9.357815MB/s.
+Ping Pong (very long), size=655360, iteration=20, transfer rate=9.362580MB/s.
+Ping Pong (very long), size=720896, iteration=20, transfer rate=9.366685MB/s.
+Ping Pong (very long), size=786432, iteration=20, transfer rate=9.365845MB/s.
+Ping Pong (very long), size=851968, iteration=20, transfer rate=9.371527MB/s.
+Ping Pong (very long), size=917504, iteration=20, transfer rate=9.375906MB/s.
+Ping Pong (very long), size=983040, iteration=20, transfer rate=9.376752MB/s.
+Ping Pong (very long), size=1048576, iteration=20, transfer rate=9.376749MB/s.

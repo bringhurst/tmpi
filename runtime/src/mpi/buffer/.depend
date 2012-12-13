@@ -1,0 +1,5 @@
+mpi_buffer.o: mpi_buffer.c \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/mpi_def.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/mbuffer.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/ukey.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/ukey_def.h

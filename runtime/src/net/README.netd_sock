@@ -1,0 +1,1 @@
+netd_sock is a "native" NETD driver, aka, a driver specifically written for NETD instead of a wrapper for an external driver (e.g. P4). It is built directly on stream socket.

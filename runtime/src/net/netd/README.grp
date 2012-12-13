@@ -1,0 +1,22 @@
+The group file format is as follows:
+
+Comments start within any place in the line starting with #.  After
+stripping out comments, each line is either blank or follows the
+following formats:
+
+<machine> <#nodes> <id list>
+
+Where the first machine must be "local". #nodes > 0. id list can be empty,
+which means the user don't care what kind of global ranks NETQ will assign
+to local nodes. Or can be any number of integers (no more than <#nodes>
+intergers) denoting the ranks of (some) nodes on that machine. Nodes
+that don't have an assigned rank will be assigned a rank by NETQ automatically.
+One can use range operator "-" to include contiguous integers in the id list.
+There cannot be any spaces before and after "-".
+
+For example, the followings are legal specfication lines:
+local 2 1 2 
+node12 4
+node13 4 4-6
+node14 3 0 
+node15 2 3

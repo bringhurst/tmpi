@@ -1,0 +1,31 @@
+Need a control message protocol within NETD layer for various functions
+such as service termination. It cannot be done by using a seperate message
+type in the underlying raw device such as P4 because the movein will be
+blocked when trying to receive normal messages.  So the control messages
+need to be sent as normal messges.
+
+I think it can be based on message length. If message length is equal
+to 8, it is a control message, the first four bytes are control message
+type, the following four bytes are control message body length, if there
+is one. Since a standard header contains at least three intergers: from,
+to, message size and payload size, normal message size will be at least
+16 bytes long. (Another way to handle it is using odd message length
+because message message should normally correspond to a normal message.)
+
+Netq termination process is as follows: (called by the main thread after
+joining all other threads)
+
+Put a terminator request into the sendq. Set a terminate flag. Further
+send request will not be served.  When the moveout dequeue the terminator
+request, it sends a termination control message to every body else and
+then exit. When the movein receives a termination control message, it will
+set the corresponding bit in a bit vector saying this guy is not going to
+send me any more messages. If the bit vector is set by all 1's, then the
+movein is going to terminate. Whenever the movein thread has a chance,
+it will also check the termination flag. If it finds the termination
+flag is on, it will terminate regardless of the bit vector. Finally,
+if netd_recv returns error for a number of times (set as a constant in
+NETQ library), movein will terminate.
+
+Need to test out netd_send/recv after netd_waitAll, it will hang!
+Also, if the peer dies, the receiver side will hang.

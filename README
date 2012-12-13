@@ -1,0 +1,44 @@
+==TMPI==
+TMPI is a thread-based MPI system. Check out the following papers
+for more information:
+	1. PPOPP 1999: Compile/Run-time Support for Threaded MPI Execution
+	on Multiprogrammed Shared Memory Machines.
+
+	2. SuperComputing 1999: Adaptive Two-level Thread Management for Fast
+	MPI Execution on Shared Memory Machines.
+
+	3. TOPLAS 2000: Program Transformation and Runtime Support for Threaded
+	MPI Execution on Shared Memory Machines.
+
+	4. ICS 2001: Optimizing Threaded MPI Execution on SMP Clusters.
+
+	5. Project Web Site: http://www.cs.ucsb.edu/projects/tmpi/
+
+Authors: Hong Tang, Kai Shen <(htang, kshen)@cs.ucsb.edu>
+This software (and updates) can be downloaded from the project web site.
+Please report bugs in TMPI to the authors through emails listed above.
+
+This is the root directory of the TMPI source tree.
+compile/	TMPI variable privatization tool.
+runtime/	TMPI runtime system
+
+See individaul README files for installation instructions.
+
+(Copyright: (C) 2001 University of California, Santa Barbara)
+
+The software is governed by GPL (GNU Public License). 
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+

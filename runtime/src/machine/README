@@ -1,0 +1,8 @@
+I should have put each architecture under a different directory, but 
+I don't have plans to implement the machine dependent module on other
+platforms other than Pentium 6+.
+
+I cannot control the code generation for cas64 and casd, so I decided to
+move them out from atomic.c into cas64.s. Essentially the code generated
+by the compiler stores the lower order bits to ecx and higher order bits
+to ebx, which is exactly the reverse as what I want.

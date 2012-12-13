@@ -1,0 +1,1 @@
+usc_time.o: usc_time.c usc_time.h

@@ -1,0 +1,27 @@
+gcc header files have lots of extras that's out of the ANSI spec. Need
+to force gcc to be compliant to ANSI. (03/22/00)
+
+On the contrary, I took the f2c generated static char fmt_<digit>[]=<string> 
+as constant definition. (02/22/00)
+
+Estimating constants are still a bit pessimestic.
+For example, the following will be considered non-constant 
+although it is probably safe to assume it is constant.
+const int a=10;
+const int *const p=&a;
+But who will do that. (02/22/00)
+
+StrBuf works now, but not yet extensively tested. (2/21/00)
+
+Servere bug found in symbol.c. Should use newsym(size) while used malloc(size) instead.
+No memory leak for the STR layer. (2/21/00)
+
+StrBuf is not working correctly. Basically it is disabled now. All names are allocated from a large buffer of 64K. Suppose a common name takes 10 characters, a single program with 6400 variables will yield buffer overflow, which is quite less likely at this point. Need more care tocheck if this mechanism works or not.
+
+a bug in mpitrans.y has been fixed and the efficient str layer is back to use again. But possible
+memory leak still exists. (8/25/98)
+
+this directory contains a dirty version of mpitrans. basically
+the str layer has been rewritten with a much less efficient implementation.
+also memory usage are much larger because no free is activated. Anyway, I
+have no time to debug these errors.  (8/24/98)

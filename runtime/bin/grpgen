@@ -1,0 +1,75 @@
+#!/usr/bin/perl
+$mac_cap="$ENV{HOME}/mpi/tmpi/runtime/etc/mac_capability";
+
+if ($#ARGV<0) 
+{
+	print <<EOF;
+Usage : grpgen n [<output_file>].
+"grpgen" generates a group file for TMPI. By default it will
+write output to "tmpi_group.<n>.grp".
+EOF
+	exit (-1);
+}
+
+if ($#ARGV==1) {
+	$output_file=$ARGV[1];
+}
+else {
+	$output_file="tmpi_group.$ARGV[0].grp";
+}
+
+if (!(-e $mac_cap)) {
+	print STDERR "Cannot find machine capability file at ", $mac_cap, "!\n";
+	exit -1;
+}
+
+sub min()
+{
+	my ($a, $b) = @_;
+	if ($a<$b) {
+		$min=$a;
+	}
+	else {
+		$min=$b;
+	}
+}
+
+$nodes=$ARGV[0];
+%mac_cap_table;
+@mac_list;
+
+open(MAC_CAP, "<$mac_cap") or die "cannot open machine capability list file.";
+
+open(OUTPUT, ">$output_file") or die "cannot write to the output file.";
+
+while (<MAC_CAP>) {
+	chomp($_);
+	my @tokens=split(/ +/, $_);
+	push(@mac_list, $tokens[0]);
+	$mac_cap_table{$tokens[0]}=$tokens[1];
+}
+
+# first line.
+$local_host=`hostname`;
+chomp($local_host);
+if ($local_host =~ /\./) {
+	$local_host =~ s/^([^\.]+)\..*$/$1/;
+}
+
+if ($mac_cap_table{$local_host}==0) {
+	$i=1;
+}
+else {
+	$i=&min($mac_cap_table{$local_host}, $nodes);
+
+}
+
+print OUTPUT "local $i\n";
+$nodes-=$i;
+
+while ($nodes>0) {
+	my $idx=int(rand($#mac_list+1));
+	$i=&min($nodes, $mac_cap_table{$mac_list[$idx]});
+	print OUTPUT "$mac_list[$idx] $i\n";
+	$nodes-=$i;
+}

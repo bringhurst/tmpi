@@ -1,0 +1,22 @@
+tmpi_key.o: tmpi_key.c \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/ukey.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/ukey_def.h
+tmpi_misc.o: tmpi_misc.c \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/mpi.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/mpi_def.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/mpi_struct.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/tmpi_name.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/mpi_func.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/netq.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/sock_conn.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/machine.h
+tmpi_util.o: tmpi_util.c tmpi_util.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/mpi_struct.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/tmpi_name.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/tmpi_debug.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/usc_time.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/mpi_def.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/thread.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/thr_def.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/ukey.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/ukey_def.h

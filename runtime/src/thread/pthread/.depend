@@ -1,0 +1,4 @@
+thread.o: thread.c ../thread.h ../thr_def.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/ukey.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/ukey_def.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/tmpi_debug.h

@@ -1,0 +1,11 @@
+Source-code tree:
+
+include/	: source header files (symbolic links to other directories)
+intra/  	: intra/inter-cluster communication. (the name was given
+				due to historical reasons and kinda of misleading)
+machine/  	: machine specific operations abstration layer
+mpi/  		: mpi wrapper functions
+net/  		: NETD device
+thread/  	: thread abstraction, using spawn/join model
+ukey/  		: thread-specific data
+utils/		: timer, debug, buffer manager, message queue modules

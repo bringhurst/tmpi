@@ -1,0 +1,7 @@
+grpgen	:	generate tmpi group configuration files.
+			It hard-coded the path of the run-time 
+			environment cluster node capacity file.
+grptr	:	translate a tmpi .grp file to the 
+			equivalent of a .mpg file that can be
+			used to run MPICH programs (actually
+			P4 configuration file).

@@ -1,0 +1,42 @@
+NETD is a wrapper library for use of the NETQ module.
+
+The implementationis tightly coupled with the real (raw) network device
+interface.  So interested readers should check the individual device
+README files for modifications of the original device.
+
+The interface exported by NETD is very slim. It does contain some
+complicated tasks. Such as reduce/allreduce/broadcast. 
+
+Asynchronous message handling is pretty difficult to use actually.
+(Unless an event driven state machine is built.) It is more difficult
+to exchange data between the message handle and the outside routine.
+(But it is still different from event driven programming because the
+handle will only be invoked every time netd_recvmsg() is called. So if you
+really want to do a event driven style programming, it should looks like:
+
+	int done=0;
+	int ret;
+	void *result;
+	while (!done) {
+		ret=netd_recvmsg(size, handleIt, &result, &done);
+		if (ret is error) {
+			// netd error
+		}
+
+		if (done is error) {
+			// handleIt error
+		}
+	}	
+
+	return;
+)
+
+Experiments seem to prove that there is no way to return from a receive
+request whose source node is dead.
+
+NETD contains a TMPI specific feature. -tmpidbg option is stripped off
+by netd_initenv. One can change the name of that option in netd.h.
+
+NETD doesn't require multithread safety, but it must support simultenous
+pt2pt operations and group operations. P4 doesn't support it, unfortunately.
+

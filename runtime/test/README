@@ -1,0 +1,19 @@
+Benchmark programs for the MPI library on SMP clusters.
+
+Micro-benchmarks:
+allreduce.c  	: MPI_Allreduce
+bar_test.c   	: MPI_Barrier
+bcast_test1.c  	: same root MPI_Bcast
+bcast_test2.c  	: rotating root MPI_Bcast
+bcast_test3.c  	: combo root MPI_Bcast
+cpuid.c        	: MPI_Get_processor_name
+gene_test.c  	: the initial test
+ow_dat.c     	: one-way data send/receive
+pp.c      		: ping-pong test with 512 bytes data
+pp_dat.c  		: ping-pong test with variable sized data
+reduce_test1.c 	: same root MPI_Reduce
+reduce_test2.c 	: rotating root MPI_Reduce
+reduce_test3.c	: combo root MPI_Reduce
+srtest.c		: ping-pong with random sleep
+
+ex.mpich/		: experiments from MPICH

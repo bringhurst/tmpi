@@ -1,0 +1,7 @@
+USC is a very fine grain clock utility.
+usc_time_t holds a reference of the clock counter (64 bits).
+usc_difftime(t1, t2) reports the time difference in the unit of microseconds.
+you need to call usc_init() before you call usc_difftime().
+usc_mhzrate() returns the cpu speed of the machine the process runs on.
+
+See test/usctest.c for details.

@@ -1,0 +1,97 @@
+sem contains code (not tested) attempted to implement general semaphore.
+I aborted it because it seems an effecient implementation is
+impossible. (Without the guarantee that the newly signaled thread will
+execute immediately after the signalling thread.)
+
+The following code doesn't preserve the order of the P/V operation.
+
+=========================
+P:
+lock
+while (N==0)
+	nWaiters++;
+	wait in waiting room
+	nWaiters--;
+end while
+N--
+unlock
+return
+
+----------------------
+
+V:
+lock
+/* actual # of waiters <= nWaiters */
+/* so nWaiters=0 ==> actual # of waiters is 0, no need to signal a guy */
+if (nWaiters>0)
+	signal a guy in the waiting room
+N++
+unlock
+return
+
+======================
+
+Or is the following simpler (don't care whether there are waiters or not.)
+
+======================
+P:
+lock
+while (N==0)
+	wait;
+N--;
+unlock
+return;
+
+----------------------
+
+V:
+lock
+N++;
+signal one
+unlock
+return;
+======================
+
+This version preserve the accuracy:
+nWaiter is the number of blocked threads,
+nPending are those have been signaled, but 
+haven't been scheduled. If the condition
+variable enforces the wakeup order as FIFO,
+then the N-- will be executed in the same
+order as the execution order of the lock
+statement of the P operation. Note actually
+the while loop should not be executed more
+than once. (Change while to if should still
+work. In reality, wait might quite due to
+signals or errors, so the while is necessary.)
+
+======================
+P:
+lock
+if (nWaiter+nPending>0) then
+	nWaiter++;
+	wait;
+	nPending--;
+end if
+
+while (N==0) 
+	nWaiter++;
+	wait;
+	nPending--;
+end while
+
+N--;
+
+unlock
+
+---------------------
+
+lock
+N++;
+if (nWaiter>0) then
+	nPending++;
+	nWaiter--;
+	signal;
+end if
+unlock
+

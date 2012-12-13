@@ -1,0 +1,1477 @@
+# include <sys/uio.h>
+# include <sys/time.h>
+# include <sys/types.h>
+# include <sys/param.h>
+# include <errno.h>
+# include <poll.h>
+
+# ifndef POLLRDNORM
+# define POLLRDNORM 0
+# endif
+
+# ifndef POLLWRNORM
+# define POLLWRNORM 0
+# endif
+
+# include <stdio.h>
+# include <stdlib.h>
+# include <string.h>
+# include <unistd.h>
+# include <ctype.h>
+# include <pwd.h>
+# include "tmpi_debug.h"
+# include "netd.h"
+# include "netd_comm.h"
+# include "netd_op.h"
+# include "sock_sr.h"
+# include "sock_conn.h"
+
+# define NETD_SLAVE "-netdslave"
+# define NETD_WDIR "-netdwd"
+# define NETD_NOSPAWN "-netdnospawn"
+# define REMOTE_SHELL "ssh"
+
+/**
+typedef struct _tree_info {
+	int initialized;
+	int up;
+	int left;
+	int right;
+} TREE_INFO;
+**/
+
+typedef struct _netd_info {
+	int size; /* netd size */
+	int myid; /* netd size */
+	int amimaster;
+	int *pt2ptfd; /* soccket fd table for pt2pt */
+	int *groupfd; /* soccket fd table for group op */
+	int *fdtorank; /* translation table from fd to id */
+					/* the following invariant should hold:
+					 * pt2ptfd[fdtorank[i]] == i || groupfd[fdtorank[i]] == i
+					 */
+	NETD_TREE_INFO **grptree; /* spanning trees based on the root */
+	char *msgbuf; /* internal message buffer */
+	int maxmsg; /* maxmsg size */
+	int progargc;
+	char **progargv;
+	struct pollfd *pt2ptset; /* cached pollfd structures for recv */
+							 /* is redudant with pt2ptfd */
+	int nospawn;
+	char fullpath[1024];
+	char workdir[1024];
+	char login[128];
+} NETD_INFO;
+
+static NETD_INFO netd_info = {
+	0,
+	-1,
+	0,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	MAX_MSG_DEFAULT,
+	0,
+	NULL,
+	NULL,
+	0,
+	"",
+	"",
+	""
+};
+
+static void netd_barrier0(int n)
+{
+	int result;
+	int m=n;
+
+	if (netd_info.size<=1)
+		return;
+
+	netd_allreduce((char *)&n, (char *)&result, 1, NETD_OP_SUM, NETD_TYPE_INT);
+
+	if (result != m*netd_info.size) {
+		tmpi_error(DBG_INTERNAL, "barrier error, %d!=%d", m*netd_info.size, result);
+	}
+
+	// if (m!=n) {
+		// tmpi_error(DBG_INTERNAL, "Why change source in allreduce? %d!=%d", m, n);
+	// }
+	return;
+}
+
+char *netd_getProgPathName()
+{
+	return netd_info.fullpath;
+}
+
+int netd_getMyID()
+{
+	return netd_info.myid;
+}
+
+int netd_getSize()
+{
+	return netd_info.size;
+}
+
+int netd_amIStartupMaster()
+{
+	return netd_info.amimaster;
+}
+
+/** barrier **/
+int netd_barrier()
+{
+	static int order=2;
+
+	netd_barrier0(order++);
+
+	return 0;
+}
+
+static void dump_cmd_args(char **args)
+{
+	int i=0;
+
+	if (tmpi_debug(DBG_INFO)) { /* make it faster */
+		while (*args) {
+			tmpi_error(DBG_INFO, "[%d] = %s", i, *args);
+			args++;
+			i++;
+		}
+	}
+}
+
+static char *netd_escape_arg(char *arg)
+{
+	int len;
+	char *newarg;
+	int i, j=1;
+
+	if (arg==NULL)
+		return NULL;
+
+	len=strlen(arg);
+	newarg=malloc(len+3);
+	newarg[0]='\'';
+
+	for (i=0; i<len; i++) {
+		if (arg[i]!='\'') {
+			newarg[j++]=arg[i];
+		}
+	}
+	newarg[j++]='\'';
+	newarg[j]='\0';
+
+	return newarg;
+}
+
+static void dump_conn_info(int dbg_level)
+{
+	if (tmpi_debug(dbg_level)) {
+		int i;
+
+		for (i=0; i<netd_info.size; i++) {
+			int fd;
+			char myip[128]="(unkonwn)", peerip[128]="(unknown)";
+			char *str;
+
+			if (i==netd_info.myid)
+				continue;
+
+			fd=netd_info.pt2ptfd[i];
+			
+			str=sock_myip(fd);
+			if (str)
+				strcpy(myip, str);
+
+			str=sock_peerip(fd);
+			if (str)
+				strcpy(peerip, str);
+
+			tmpi_error(dbg_level, "[%d - %d] (pt2pt=%d) between (%s:%d) and (%s:%d).", 
+					netd_info.myid, i, fd, myip, sock_myport(fd), peerip,
+					sock_peerport(fd));
+		}
+
+		for (i=0; i<netd_info.size; i++) {
+			int fd;
+			char myip[128]="(unkonwn)", peerip[128]="(unknown)";
+			char *str;
+
+			if (i==netd_info.myid)
+				continue;
+
+			fd=netd_info.groupfd[i];
+
+			str=sock_myip(fd);
+			if (str)
+				strcpy(myip, str);
+
+			str=sock_peerip(fd);
+			if (str)
+				strcpy(peerip, str);
+
+			tmpi_error(dbg_level, "[%d - %d] (bcast=%d) between (%s:%d) and (%s:%d).", 
+					netd_info.myid, i, fd, myip, sock_myport(fd), peerip,
+					sock_peerport(fd));
+		}
+	}
+}
+
+int netd_start(Machine *mac_list)
+{
+
+	if (netd_info.myid<0)
+		return -1;
+
+	if (!netd_amIStartupMaster()) {
+		/* dump_conn_info(DBG_INFO); */
+		return 0;
+	}
+	else {
+		/* create processes with ssh */
+		
+		int rootlisport, rootlisfd;
+		int bclisfd, bclisport;
+		char roothostname[1024];
+		char rootlisport_c[10];
+		char **cmd_args=NULL;
+		int i, j;
+		int nChild=0;
+		int *bcports=NULL;
+		int *ptports=NULL;
+		char (*hostnames)[1024];
+		int info[2];
+		int maxfd=0;
+		int nextidx;
+
+		/* I don't support group file */
+		if (!mac_list)
+			return -1;
+
+		i=0;
+		while (mac_list[i].nProcs!=-1)
+			i++;
+
+		if (i==0)
+			return -1;
+
+		netd_info.size=i;
+
+		netd_info.pt2ptfd=(int *)malloc(sizeof(int)*netd_info.size);
+		netd_info.groupfd=(int *)malloc(sizeof(int)*netd_info.size);
+		netd_info.grptree=(NETD_TREE_INFO **)calloc(netd_info.size, sizeof(NETD_TREE_INFO *));
+
+		netd_info.pt2ptfd[netd_info.myid]=-1;
+		netd_info.groupfd[netd_info.myid]=-1;
+
+		/** The following two tests are likely to be relaxed in the future */
+		if (strcmp(mac_list[0].szHost, "local")!=0) {
+			tmpi_error(DBG_CALLER, "The first machine must be local.");
+			return -1;
+		}
+
+		for (i=0; i<netd_info.size; i++) {
+			if (mac_list[i].nProcs!=1) {
+				tmpi_error(DBG_CALLER, "Multiple nodes per machine not supported.");
+				return -1;
+			}
+		}
+
+		/* Okay stop here if the group size is 1 */
+		if (netd_info.size==1)
+			return 0;
+
+		netd_info.pt2ptset=(struct pollfd *)calloc(netd_info.size-1, sizeof(struct pollfd));
+
+		strcpy(roothostname, sock_hostname());
+		rootlisfd=sock_listen(SOCK_PORT_ANY, 1024);
+		rootlisport=sock_myport(rootlisfd);
+		sprintf(rootlisport_c, "%d", rootlisport);
+
+		cmd_args=(char **)calloc(12+netd_info.progargc, sizeof(char *));
+		cmd_args[0]=REMOTE_SHELL;
+		/* cmd_args[1] is the remote machine name */
+		cmd_args[1]="-l";
+		cmd_args[2]=netd_info.login;
+		cmd_args[3]="-n";
+		cmd_args[5]=netd_info.fullpath;
+		cmd_args[6]=roothostname;
+		cmd_args[7]=rootlisport_c;
+		cmd_args[8]=NETD_SLAVE;
+		if (netd_info.workdir[0]!='\0') {
+			cmd_args[9]=NETD_WDIR;
+			cmd_args[10]=netd_info.workdir;
+			nextidx=11;
+		}
+		else {
+			nextidx=9;
+		}
+
+		for (i=0; i<netd_info.progargc; i++) {
+			cmd_args[nextidx+i]=netd_escape_arg(netd_info.progargv[i]);
+		}
+		cmd_args[nextidx+netd_info.progargc]=NULL;
+
+		/* Starting from machine 1 */
+		for (i=1; i<netd_info.size; i++) {
+			int pid;
+
+			cmd_args[4]=mac_list[i].szHost;
+			if (!netd_info.nospawn) {
+				pid=fork();
+				if (pid==-1) {
+					tmpi_error(DBG_FATAL, "Cannot spawn child processes.");
+				}
+				else if (pid==0) {
+					/* dump_cmd_args(cmd_args); */
+					if (execvp(REMOTE_SHELL, cmd_args)==-1) {
+						tmpi_error(DBG_FATAL, "Cannot create remote processes.");
+						/* stop execution now */
+
+						/* In that case, the parent will hang, sigh, what else can I do? */
+						return -1;
+					}
+					/* never reach here */
+				}
+				else {
+					nChild++;
+				}
+			}
+		}
+
+		if (netd_info.nospawn) {
+			char cmdline[1024]="";
+
+			int k=5;
+
+			while (cmd_args[k]) {
+				strcat(cmdline, cmd_args[k]);
+				strcat(cmdline, " ");
+				k++;
+			}
+
+			nChild=netd_info.size-1;
+
+			tmpi_error(DBG_FATAL, "New %d Processes%% %s", nChild, cmdline);
+		}
+
+		/* no need to keep it now */
+		free(cmd_args);
+
+		if (nChild<netd_info.size-1) {
+			/* oops, less process than expected */
+			return -1;
+		}
+
+		bclisfd=sock_listen(SOCK_PORT_ANY, 1024);
+		bclisport=sock_myport(bclisfd);
+
+		ptports=(int *)malloc(sizeof(int)*netd_info.size);
+		bcports=(int *)malloc(sizeof(int)*netd_info.size);
+		hostnames=(char (*)[1024])malloc(sizeof(char[1024])*netd_info.size);
+
+		ptports[0]=rootlisport;
+		bcports[0]=bclisport;
+		strcpy(hostnames[0], roothostname);
+		info[0]=netd_info.size;
+
+		for (i=1; i<netd_info.size; i++) {
+			int cfd;
+
+			info[1]=i;
+
+			cfd=sock_accept(rootlisfd);
+			netd_info.pt2ptfd[i]=cfd;
+			sock_read(cfd, (char *)&(ptports[i]), sizeof(int));
+			sock_read(cfd, (char *)&(bcports[i]), sizeof(int));
+			sock_read(cfd, hostnames[i], 1024);
+			sock_write(cfd, (char *)info, sizeof(int)*2);
+		}
+
+		for (i=1; i<netd_info.size; i++) {
+			int cfd=netd_info.pt2ptfd[i];
+
+			sock_write(cfd, (char *)ptports, sizeof(int)*netd_info.size);
+			sock_write(cfd, (char *)bcports, sizeof(int)*netd_info.size);
+
+			for (j=0; j<netd_info.size; j++) {
+				sock_write(cfd, hostnames[j], 1024);
+			}
+		}
+
+		for (i=1; i<netd_info.size; i++) {
+			int cfd;
+			int cid;
+
+			cfd=sock_accept(bclisfd);
+			sock_read(cfd, (char *)&cid, sizeof(int));
+			netd_info.groupfd[cid]=cfd;
+		}
+
+		free(ptports);
+		free(bcports);
+		free(hostnames);
+		close(rootlisfd);
+		close(bclisfd);
+
+		for (i=1; i<netd_info.size; i++) {
+			if (maxfd<netd_info.pt2ptfd[i])
+				maxfd=netd_info.pt2ptfd[i];
+			if (maxfd<netd_info.groupfd[i])
+				maxfd=netd_info.groupfd[i];
+		}
+
+		netd_info.fdtorank=(int *)malloc(sizeof(int)*(maxfd+1));
+
+		for (i=0; i<maxfd+1; i++)
+			netd_info.fdtorank[i]=-1;
+
+		for (i=1; i<netd_info.size; i++) {
+			struct pollfd *pfd;
+
+			pfd=&(netd_info.pt2ptset[i-1]);
+
+			pfd->fd=netd_info.pt2ptfd[i];
+			pfd->events=POLLIN|POLLRDNORM;
+			pfd->revents=0;
+
+			netd_info.fdtorank[netd_info.pt2ptfd[i]]=i;
+			netd_info.fdtorank[netd_info.groupfd[i]]=i;
+		}
+	}
+
+	/* dump_conn_info(DBG_INFO); */
+
+	return 0;
+}
+
+static void netd_strip_out_args(char **argv, int *argc, int *c, int num);
+
+static void netd_getwdir()
+{
+	if (getcwd(netd_info.workdir, 1024)==NULL) {
+		netd_info.workdir[0]='\0';
+	}
+}
+
+static void netd_getlogin()
+{
+	char *logname;
+
+	logname=getlogin();
+
+	if (!logname) { 
+		/* try environment variable? */
+		logname=getenv("USER");
+
+		if (!logname) {
+			/* neet to get user name from uid */
+			int uid=getuid();
+			struct passwd *pw=getpwuid(uid);
+			if ((!pw) || (!(pw->pw_name))) {
+				/* sorry, I am out. */
+				netd_info.login[0]='\0';
+				return;
+			}
+			logname=pw->pw_name;
+		}
+	}
+
+	strcpy(netd_info.login, logname);
+
+	return;
+}
+
+int netd_initEnv(int *argc, char **(*argv), Machine **pmac_list)
+{
+	int i;
+	// char cwd[1024];
+
+	/* I don't support group file, sorry */
+	if (pmac_list)
+		*pmac_list=NULL;
+
+
+	netd_info.amimaster=1;
+
+	/* strip off some arguments ? */
+	for (i=*argc; i>0; i--) { 
+		/** dbg level options **/
+		if (strcmp((*argv)[i-1], NETD_DBGOPT)==0) {
+			int dbglev;
+
+			if (isdigit((*argv)[i][0]))
+				dbglev=atoi((*argv)[i]);
+			else {
+				tmpi_error(DBG_APP, "Fail to get an integer debug level after %s.", NETD_DBGOPT);
+				dbglev=DBG_ALL;
+			}
+			tmpi_set_dbg_level(dbglev);
+			netd_strip_out_args((*argv)+(i-1), argc, &i, 2);
+
+			tmpi_error(DBG_INFO, "Set debug level = %d.", dbglev); 
+		}
+		else if (strcmp((*argv)[i-1], NETD_SLAVE)==0) {
+			/* okay I am a slave process */
+			netd_info.amimaster=0;
+			netd_strip_out_args((*argv)+(i-1), argc, &i, 1);
+
+			/* tmpi_error(DBG_INFO, "I am a slave.");  */
+		}
+		else if (strcmp((*argv)[i-1], NETD_WDIR)==0) {
+			if ((*argv)[i]) { /* setting the working directory */
+				// char cwd[1024];
+				chdir((*argv)[i]);
+				// tmpi_error(DBG_INFO, "My current working directory is %s.", getcwd(cwd, 1024));
+				netd_strip_out_args((*argv)+(i-1), argc, &i, 2);
+			}
+			else {
+				netd_strip_out_args((*argv)+(i-1), argc, &i, 1);
+			}
+		}
+		else if (strcmp((*argv)[i-1], NETD_NOSPAWN)==0) {
+			netd_info.nospawn=1;
+			netd_strip_out_args((*argv)+(i-1), argc, &i, 1);
+		}
+	}
+
+	if (netd_amIStartupMaster()) {
+		netd_info.myid=0;
+		netd_info.progargc=*argc;
+		netd_info.progargv=(char **)calloc(*argc+1, sizeof(char *));
+		for (i=0; i<*argc; i++) {
+			netd_info.progargv[i]=(*argv)[i];
+		}
+
+		if (realpath((*argv)[0], netd_info.fullpath)==NULL) {
+			tmpi_error(DBG_WARN2, "Cannot get full path name of the program, use argv[0] instead.");
+			strcpy(netd_info.fullpath, (*argv)[0]);
+		}
+
+		netd_getlogin();
+		netd_getwdir();
+	}
+	else {
+		/** 
+		 * should have the arguments in the following order :
+		 * argv[1] = root host name
+		 * argv[2] = root host listen port
+		 * argv[3] = program name (without path)
+		 * the rest ...
+		 */
+		int port;
+		int ptport, bcport;
+		int fd;
+		int info[2];
+		int ptlisfd, bclisfd;
+		int maxfd=0;
+		char hostname[1024];
+		int *ptports;
+		int *bcports;
+		char (*hostnames)[1024];
+		int argc_cursor=1;
+
+		if (*argc<4) {
+			tmpi_error(DBG_FATAL, "Slave process not started by master.");
+			return -1;
+		}
+
+		netd_getlogin();
+		strcpy(netd_info.fullpath, (*argv)[0]);
+
+		port=atoi((*argv)[2]);
+
+		fd=sock_conn((*argv)[1], port);
+
+		netd_strip_out_args((*argv), argc, &argc_cursor, 3);
+
+		if (fd==-1) {
+			tmpi_error(DBG_FATAL, "Slave cannot connect to server.");
+			return -1;
+		}
+		ptlisfd=sock_listen(SOCK_PORT_ANY, 1024);
+		ptport=sock_myport(ptlisfd);
+		bclisfd=sock_listen(SOCK_PORT_ANY, 1024);
+		bcport=sock_myport(bclisfd);
+		strcpy(hostname,sock_hostname());
+
+		sock_write(fd, (char *)&ptport, sizeof(int));
+		sock_write(fd, (char *)&bcport, sizeof(int));
+		sock_write(fd, hostname, 1024);
+		sock_read(fd, (char *)info, sizeof(int)*2);
+
+		netd_info.size=info[0];
+		netd_info.myid=info[1];
+		netd_info.pt2ptfd=(int *)calloc(netd_info.size, sizeof(int));
+		netd_info.groupfd=(int *)calloc(netd_info.size, sizeof(int));
+		netd_info.grptree=(NETD_TREE_INFO **)calloc(netd_info.size, sizeof(NETD_TREE_INFO *));
+		netd_info.pt2ptset=(struct pollfd *)calloc(netd_info.size-1, sizeof(struct pollfd));
+		netd_info.pt2ptfd[0]=fd;
+
+		/**
+		 * Certainlly one can optimize the following a bit,
+		 * but who cares for this one time cost?
+		 */
+		ptports=(int *)malloc(sizeof(int)*netd_info.size);
+		bcports=(int *)malloc(sizeof(int)*netd_info.size);
+		hostnames=(char (*)[1024])malloc(sizeof(char[1024])*netd_info.size);
+		sock_read(fd, (char *)ptports, sizeof(int)*netd_info.size);
+		sock_read(fd, (char *)bcports, sizeof(int)*netd_info.size);
+		for (i=0; i<netd_info.size; i++) {
+			sock_read(fd, hostnames[i], 1024);
+		}
+
+		for (i=1; i<netd_info.myid; i++) {
+			netd_info.pt2ptfd[i]=sock_conn(hostnames[i], ptports[i]);
+			sock_write(netd_info.pt2ptfd[i], (char *)(&netd_info.myid), sizeof(int));
+		}
+
+		netd_info.pt2ptfd[netd_info.myid]=-1;
+
+		for (i++; i<netd_info.size; i++) {
+			int newfd;
+			int newid;
+			newfd=sock_accept(ptlisfd);
+			sock_read(newfd, (char *)&newid, sizeof(int));
+			netd_info.pt2ptfd[newid]=newfd;
+		}
+
+		for (i=0; i<netd_info.myid; i++) {
+			netd_info.groupfd[i]=sock_conn(hostnames[i], bcports[i]);
+			sock_write(netd_info.groupfd[i], (char *)(&netd_info.myid), sizeof(int));
+		}
+
+		netd_info.groupfd[netd_info.myid]=-1;
+
+		for (i++; i<netd_info.size; i++) {
+			int newfd;
+			int newid;
+			newfd=sock_accept(bclisfd);
+			sock_read(newfd, (char *)&newid, sizeof(int));
+			netd_info.groupfd[newid]=newfd;
+		}
+		free(ptports);
+		free(bcports);
+		free(hostnames);
+		close(ptlisfd);
+		close(bclisfd);
+
+		for (i=0; i<netd_info.size; i++) {
+			if (i==netd_info.myid)
+				continue;
+			if (maxfd<netd_info.pt2ptfd[i])
+				maxfd=netd_info.pt2ptfd[i];
+			if (maxfd<netd_info.groupfd[i])
+				maxfd=netd_info.groupfd[i];
+		}
+
+		netd_info.fdtorank=(int *)malloc(sizeof(int)*(maxfd+1));
+
+		for (i=0; i<maxfd+1; i++)
+			netd_info.fdtorank[i]=-1;
+
+		for (i=0; i<netd_info.size; i++) {
+			struct pollfd *pfd;
+
+			if (netd_info.myid==i)
+				continue;
+
+			if (i>netd_info.myid) {
+				pfd=&(netd_info.pt2ptset[i-1]);
+			}
+			else {
+				pfd=&(netd_info.pt2ptset[i]);
+			}
+
+			pfd->fd=netd_info.pt2ptfd[i];
+			pfd->events=POLLIN|POLLRDNORM;
+			pfd->revents=0;
+
+			netd_info.fdtorank[netd_info.pt2ptfd[i]]=i;
+			netd_info.fdtorank[netd_info.groupfd[i]]=i;
+		}
+	}
+
+	return 0;
+}
+
+
+void netd_waitAll()
+{
+	int i;
+
+	if (netd_info.myid<0)
+		return;
+
+	/* just a special barrier */
+	netd_barrier0(1);
+
+	/* now release the resources */
+
+	netd_info.size=0;
+	netd_info.myid=-1;
+
+	if (netd_info.pt2ptfd && netd_info.groupfd) {
+		for (i=0; i<netd_info.size; i++) {
+			if (i==netd_info.myid)
+				continue;
+			close(netd_info.pt2ptfd[i]);
+			close(netd_info.groupfd[i]);
+		}
+	}
+
+	if (netd_info.pt2ptfd) {
+		free(netd_info.pt2ptfd);
+		netd_info.pt2ptfd=NULL;
+	}
+
+	if (netd_info.groupfd) {
+		free(netd_info.groupfd);
+		netd_info.groupfd=NULL;
+	}
+
+	if (netd_info.fdtorank) {
+		free(netd_info.fdtorank);
+		netd_info.fdtorank=NULL;
+	}
+
+	if (netd_info.grptree) {
+		for (i=0; i<netd_info.size; i++) {
+			if (netd_info.grptree[i])
+				free(netd_info.grptree[i]);
+		}
+		free(netd_info.grptree);
+		netd_info.grptree=NULL;
+	}
+
+	if (netd_info.msgbuf) {
+		free(netd_info.msgbuf);
+		netd_info.msgbuf=NULL;
+	}
+
+	if (netd_info.progargv) {
+		free(netd_info.progargv);
+		netd_info.progargv=NULL;
+	}
+
+	netd_info.progargc=0;
+
+	if (netd_info.pt2ptset) {
+		free(netd_info.pt2ptset);
+		netd_info.pt2ptset=NULL;
+	}
+
+	return;
+}
+
+/** set the maximum message size **/
+int netd_setMsgSize(int msgsize)
+{
+	if (msgsize < MAX_MSG_DEFAULT) {
+		tmpi_error(DBG_CALLER, "message size smaller than default.");
+		msgsize=MAX_MSG_DEFAULT;
+	}
+	
+	if (netd_info.maxmsg<msgsize) {
+		netd_info.maxmsg=msgsize;
+		if (netd_info.msgbuf) {
+			free(netd_info.msgbuf);
+			netd_info.msgbuf=NULL;
+		}
+	}
+
+	return 0;
+}
+
+/** get the maximum message size **/
+int netd_getMsgSize()
+{
+	return netd_info.maxmsg;
+}
+
+/** always use user provided buffer **/
+int netd_sendmsg(int to, char *msg, int len)
+{
+	int fd;
+	struct iovec iov[2];
+
+	if (!netd_info.pt2ptfd)
+		return -1;
+
+	if ( (to<0) || (to>=netd_info.size))
+		return -1;
+
+	fd=netd_info.pt2ptfd[to];
+
+	if (fd==-1)
+		return -1;
+
+	iov[0].iov_base=&len;
+	iov[0].iov_len=sizeof(int);
+	iov[1].iov_base=msg;
+	iov[1].iov_len=len;
+
+	return sock_writev(fd, iov, 2);
+}
+
+int netd_senddat(int to, char *data, int len)
+{
+	int fd;
+	
+	if (!netd_info.pt2ptfd)
+		return -1;
+
+	if ( (to<0) || (to>=netd_info.size))
+		return -1;
+
+	fd=netd_info.pt2ptfd[to];
+
+	if (fd==-1)
+		return -1;
+
+	return sock_write(fd, data, len);
+}
+
+int netd_sendmsgdat(int to, char *msg, int msglen, char *data, int datlen)
+{
+	int fd;
+	struct iovec iov[2]={{msg, msglen}, {data, datlen}};
+
+	if (!netd_info.pt2ptfd)
+		return -1;
+
+	if ( (to<0) || (to>=netd_info.size))
+		return -1;
+
+	fd=netd_info.pt2ptfd[to];
+
+	if (fd==-1)
+		return -1;
+
+	return sock_writev(fd, iov, 2);
+}
+
+/**
+static int netd_create_fdset(fd_set *pfdset, int *fds, int count)
+{
+	int max=-1;
+	int i=0;
+
+	FD_ZERO(pfdset);
+
+	for (; i<count; i++) {
+		if (fds[i]>max)
+			max=fds[i];
+		FD_SET(fds[i], pfdset);
+	}
+
+	return max+1;
+}
+**/
+	
+int netd_recvmsg(
+		int size, 
+		int (*msg_handle)(int from, char *data, int len, void **result), 
+		void **result, 
+		int *status
+	)
+{
+	static int nset=0;
+	static int idx=-1;
+	int fd=-1;
+	int m, n;
+	char dump[128];
+
+	if ( (!netd_info.pt2ptset) || (!netd_info.fdtorank) )
+		return -1;
+
+	/* have to have at least two nodes in the group */
+	if (netd_info.size<2)
+		return -1;
+
+	if (nset>0) { /* try to use the cached information */
+		for (idx++; idx<netd_info.size-1; idx++) {
+			int revents=netd_info.pt2ptset[idx].revents;
+			if (revents) {
+				nset--;
+				if (revents & (POLLIN|POLLRDNORM)) {
+					fd=netd_info.pt2ptset[idx].fd;
+					break;
+				}
+			}
+		}
+
+		/* since it is cached data, I better double check */
+		if (sock_canread(fd)!=1) 
+			fd=-1;
+	}
+
+	/* sounds to be faster than calling create_fdset each time */
+	if (fd==-1) {
+		/* wait forever */
+		while ((nset=poll(netd_info.pt2ptset, netd_info.size-1, -1)) <= 0) {  /* should not be zero */
+			if (errno!=EINTR) /* waken up by signales, try again */
+				return -1;
+		}
+
+		for (idx=0; idx<netd_info.size-1; idx++) {
+			int revents=netd_info.pt2ptset[idx].revents;
+			if (revents) {
+				nset--;
+				if (revents & (POLLIN|POLLRDNORM))  {
+					fd=netd_info.pt2ptset[idx].fd;
+					break;
+				}
+			}
+		}
+	}
+
+	if (fd==-1)
+		return -1;
+
+	netd_info.pt2ptset[idx].revents=0;
+
+	/* now we get the fd */
+
+	if (size>netd_info.maxmsg) {
+		tmpi_error(DBG_CALLER, "netd_recvmsg: msg size too large.");	
+		return -1;
+	}
+
+	if (netd_info.msgbuf==NULL) {
+		netd_info.msgbuf=(char *)malloc(netd_info.maxmsg);
+	}
+
+	if (sock_read(fd, (char *)&n, sizeof(int))<0)
+		return -1;
+
+	if (n<0) {
+		tmpi_error(DBG_INTERNAL, "Weired, got negative message size.");
+		return -1;
+	}
+
+	m=(n>size)?size:n;
+
+	if (m>0) { /* zero length message is allowed */
+		if (sock_read(fd, netd_info.msgbuf, m)<0)
+			return -1;
+	}
+
+	if (n>m) {
+		/* clear remaining data */
+		tmpi_error(DBG_INFO, "Incoming message truncated.");
+
+		n-=m;
+		while (n) {
+			int i=(n>128)?128:n;
+
+			sock_read(fd, dump, i);
+			n-=i;
+		}
+	}
+
+	n=(*msg_handle)(netd_info.fdtorank[fd], netd_info.msgbuf, m, result);
+
+	if (status) {
+		*status=n;
+		return 0;
+	}
+	else
+		return n;
+}
+
+int netd_recvdat(int from, char *data, int len)
+{
+	int fd;
+	
+	if (!netd_info.pt2ptfd)
+		return -1;
+
+	if ( (from<0) || (from>=netd_info.size))
+		return -1;
+
+	fd=netd_info.pt2ptfd[from];
+
+	if (fd==-1)
+		return -1;
+
+	return sock_read(fd, data, len);
+}
+
+# define MAX_MASTERS 1024
+static void netd_make_tree(int root)
+{
+	NETD_TREE_INFO *tr=netd_info.grptree[root];
+	int idx;
+	int i, k;
+	unsigned int mask;
+	int size;
+	int myid;
+
+	if (tr==NULL) {
+		tr=(NETD_TREE_INFO *)malloc(sizeof(NETD_TREE_INFO));
+		if (!tr)
+			return;
+		tr->initialized=0;
+		tr->up=-1;
+		tr->nChildren=0;
+		tr->children=NULL;
+		netd_info.grptree[root]=tr;
+	}
+
+	if (tr->initialized)
+		return;
+
+	size=netd_info.size;
+	myid=netd_info.myid;
+	idx=(size+myid-root)%size;
+
+	k=0;
+	mask=1;
+
+	while (mask<size) {
+		if (mask & idx)
+			break;
+		if ((mask|idx)<size)
+			k++;
+		mask <<= 1;
+	}
+
+	tr->nChildren=k;
+	tr->up=((idx&(~mask))+root)%size;
+
+	if (k>0) {
+		tr->children=(int *)calloc(k, sizeof(int));
+		if (!tr->children) {
+			free(tr);
+			return;
+		}
+
+		mask=1;
+		for (i=0; i<k; i++) {
+			tr->children[i]=((mask|idx)+root)%size;
+			mask <<= 1;
+		}
+	}		
+
+	tr->initialized=1;
+
+	return;
+}
+# undef MAX_MASTERS
+
+/* no simple */
+// # define BCAST_SIMPLE_NODES 0
+/* no tree */
+// # define BCAST_SIMPLE_NODES 1024 
+/* otherwise, bcast algorithm is based on the node number */
+# define BCAST_SIMPLE_NODES 4 
+
+/* no simple */
+// # define REDUCE_SIMPLE_NODES 0
+/* no tree */
+// # define REDUCE_SIMPLE_NODES 1024 
+/* otherwise, bcast algorithm is based on the node number */
+# define REDUCE_SIMPLE_NODES 4 
+
+/** group communication **/
+static int netd_bcast_simple(char *data, int len, int root)
+{
+	int stat=0;
+
+	if (netd_info.myid<0)
+		return -1;
+
+	if (!netd_info.groupfd)
+		return -1;
+
+	if (netd_info.size<2)
+		return 0;
+
+	if (netd_info.myid==root) {
+		int i;
+		for (i=0; i<netd_info.size; i++) {
+			if (i==netd_info.myid)
+				continue;
+			stat+=sock_write(netd_info.groupfd[i], data, len);
+		}
+	}
+	else {
+		stat+=sock_read(netd_info.groupfd[root], data, len);
+	}
+
+	if (stat)
+		return -1;
+
+	return 0;
+}
+
+static int netd_bcast_tree(char *data, int len, int root)
+{
+	NETD_TREE_INFO *tr;
+	int stat=0;
+	int i;
+
+	if (netd_info.myid<0)
+		return -1;
+
+	if (!netd_info.groupfd)
+		return -1;
+
+	if (netd_info.size<2)
+		return 0;
+
+	netd_make_tree(root);
+
+	tr=netd_info.grptree[root];
+
+	if (!tr)
+		return -1;
+
+	if (tr->up != -1) {
+		int fd=netd_info.groupfd[tr->up];
+
+		stat+=sock_read(fd, data, len);
+	}
+
+	for (i=tr->nChildren-1; i>=0; i--) {
+		int fd=netd_info.groupfd[tr->children[i]];
+
+		stat+=sock_write(fd, data, len);
+	}
+
+	if (stat)
+		return -1;
+
+	return 0;
+}
+
+/**
+static int netd_bcast_tree(char *data, int len, int root)
+{
+	NETD_TREE_INFO *tr;
+	int stat=0;
+
+	if (netd_info.myid<0)
+		return -1;
+
+	if (!netd_info.groupfd)
+		return -1;
+
+	if (netd_info.size<2)
+		return 0;
+
+	netd_make_tree(0);
+
+	tr=netd_info.grptree[0];
+
+	if (!tr)
+		return -1;
+
+	if (netd_info.myid==root) {
+		if (netd_info.myid!=0) {
+			int fd=netd_info.groupfd[0];
+			stat+=sock_write(fd, data, len);
+		}
+	}
+	else {
+		int fd;
+
+		if (netd_info.myid==0) {
+			fd=netd_info.groupfd[root];
+		}
+		else {
+			fd=netd_info.groupfd[tr->up];
+		}
+
+		stat+=sock_read(fd, data, len);
+	}
+
+	if ( (tr->left != -1) && (tr->left!=root) ) {
+		int fd=netd_info.groupfd[tr->left];
+
+		stat+=sock_write(fd, data, len);
+	}
+
+	if ( (tr->right != -1) && (tr->right!=root) ) {
+		int fd=netd_info.groupfd[tr->right];
+
+		stat+=sock_write(fd, data, len);
+	}
+
+	if (stat)
+		return -1;
+
+	return 0;
+}
+**/
+
+int netd_bcast(char *data, int len, int root)
+{
+	/* usually programs start with a broadcast from the root */
+	static int last_root=-1;
+	int ret;
+
+	if ( 		(netd_info.size <= BCAST_SIMPLE_NODES) 
+			&& 	(last_root != root) 
+			&& 	(last_root != -1) 
+	) {
+		last_root=root;
+		ret=netd_bcast_simple(data, len, root);
+	}
+	else {
+		last_root=root;
+		ret=netd_bcast_tree(data, len, root);
+	}
+
+	return ret;
+}
+
+static void (*(optable[][8]))() = {
+	{ NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL},
+	{ NULL, netd_int_absmax_op, netd_int_absmin_op, netd_int_max_op, netd_int_min_op, netd_int_mult_op, netd_int_sum_op, NULL},
+	{ NULL, netd_dbl_absmax_op, netd_dbl_absmin_op, netd_dbl_max_op, netd_dbl_min_op, netd_dbl_mult_op, netd_dbl_sum_op, NULL},
+	{ NULL, netd_flt_absmax_op, netd_flt_absmin_op, netd_flt_max_op, netd_flt_min_op, netd_flt_mult_op, netd_flt_sum_op, NULL},
+	{ NULL, netd_int_absmax_op, netd_int_absmin_op, netd_int_max_op, netd_int_min_op, netd_int_mult_op, netd_int_sum_op, NULL},
+	{ NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL}
+};
+
+static int dtypetable[]= {0, sizeof(int), sizeof(double), sizeof(float), sizeof(long), 0};
+static void (*(absoptable[]))() =
+	{ NULL, netd_int_abs_op, netd_dbl_abs_op, netd_flt_abs_op, netd_int_abs_op, NULL};
+
+static int netd_reduce_tree(char *src, char *result, int nelem, int op, int data_type, int root)
+{
+	NETD_TREE_INFO *tr;
+	int stat=0;
+	void (*opfunc)()=optable[data_type][op];
+	int dsize=dtypetable[data_type];
+	int len=nelem*dsize;
+	int i;
+
+	if (netd_info.myid<0)
+		return -1;
+
+	if ((!opfunc) || (!dsize) || (!netd_info.groupfd))
+		return -1;
+
+	memcpy(result, src, len);
+
+	if (netd_info.size<2) {
+		if ( (op==NETD_OP_ABSMAX)||(op==NETD_OP_ABSMIN) ) {
+			opfunc=absoptable[data_type];
+			(*opfunc)(result, nelem);
+		}
+		return 0;
+	}
+
+	netd_make_tree(root);
+	tr=netd_info.grptree[root];
+
+	if (!tr)
+		return -1;
+
+	for (i=0; i<tr->nChildren; i++) {
+		int fd=netd_info.groupfd[tr->children[i]];
+
+		stat+=sock_read(fd, src, len);
+		(*opfunc)(result, src, nelem);
+	}
+
+	if (tr->up != -1) {
+		int fd=netd_info.groupfd[tr->up];
+
+		stat+=sock_write(fd, result, len);
+	}
+
+	if (stat)
+		return -1;
+
+	return 0;
+}
+
+static int netd_reduce_simple(char *src, char *result, int nelem, int op, int data_type, int root)
+{
+	int stat=0;
+	void (*opfunc)()=optable[data_type][op];
+	int dsize=dtypetable[data_type];
+	int len=nelem*dsize;
+
+	if (netd_info.myid<0)
+		return -1;
+
+	if ((!opfunc) || (!dsize) || (!netd_info.groupfd))
+		return -1;
+
+	if (netd_info.size<2) {
+
+		memcpy(result, src, len);
+
+		if ( (op==NETD_OP_ABSMAX)||(op==NETD_OP_ABSMIN) ) {
+			opfunc=absoptable[data_type];
+			(*opfunc)(result, nelem);
+		}
+		return 0;
+	}
+
+	if (netd_info.myid==root) {
+		int i;
+
+		memcpy(result, src, len);
+
+		for (i=0; i<netd_info.size; i++) {
+			if (i==netd_info.myid)
+				continue;
+			stat+=sock_read(netd_info.groupfd[i], src, len);
+			(*opfunc)(result, src, nelem);
+		}
+	}
+	else {
+		stat+=sock_write(netd_info.groupfd[root], src, len);
+	}
+
+	if (stat)
+		return -1;
+
+	return 0;
+}
+
+int netd_reduce(char *src, char *result, int nelem, int op, int data_type, int root)
+{
+	/* usually programs start with a broadcast from the root */
+	static int last_root=-1;
+
+	if (
+				(netd_info.size <= REDUCE_SIMPLE_NODES) 
+			&& 	(last_root != root)
+			&&  (last_root != -1) 
+	) {
+		last_root=root;
+		return netd_reduce_simple(src, result, nelem, op, data_type, root);
+	}
+	else {
+		last_root=root;
+		return netd_reduce_tree(src, result, nelem, op, data_type, root);
+	}
+}
+
+int netd_allreduce(char *src, char *result, int nelem, int op, int data_type)
+{
+	static int root=0;
+	int stat=0;
+	int dsize=dtypetable[data_type];
+	int len=nelem*dsize;
+
+	stat+=netd_reduce(src, result, nelem, op, data_type, root);
+	stat+=netd_bcast(result, len, root);
+
+	if (stat)
+		return -1;
+
+	// root=(root+1)%netd_info.size;
+
+	return 0;
+}
+
+/** probe message **/
+int netd_canSendMsg(int to)
+{
+	int fd;
+	
+	if (!netd_info.pt2ptfd)
+		return -1;
+
+	if ( (to<0) || (to>=netd_info.size))
+		return -1;
+
+	fd=netd_info.pt2ptfd[to];
+
+	if (fd==-1)
+		return -1;
+
+	return sock_canwrite(fd);
+}
+
+int netd_canRecvMsg(int from)
+{
+	int fd;
+	
+	if (!netd_info.pt2ptfd)
+		return -1;
+
+	if ( (from<0) || (from>=netd_info.size))
+		return -1;
+
+	fd=netd_info.pt2ptfd[from];
+
+	if (fd==-1)
+		return -1;
+
+	return sock_canread(fd);
+}
+
+/** probe data **/
+int netd_canSendDat(int to)
+{
+	int fd;
+	
+	if (!netd_info.pt2ptfd)
+		return -1;
+
+	if ( (to<0) || (to>=netd_info.size))
+		return -1;
+
+	fd=netd_info.pt2ptfd[to];
+
+	if (fd==-1)
+		return -1;
+
+	return sock_canwrite(fd);
+}
+
+int netd_canRecvDat(int from)
+{
+	int fd;
+	
+	if (!netd_info.pt2ptfd)
+		return -1;
+
+	if ( (from<0) || (from>=netd_info.size))
+		return -1;
+
+	fd=netd_info.pt2ptfd[from];
+
+	if (fd==-1)
+		return -1;
+
+	return sock_canread(fd);
+}
+
+static void netd_strip_out_args(char **argv, int *argc, int *c, int num)
+{
+    char **a;
+    int i;
+
+    /* Strip out the argument. */
+    for (a = argv, i = (*c); i <= *argc-num; i++, a++)
+		*a = (*(a + num));
+	*a=NULL;
+    (*argc) -= num;
+}
+
+/** To be implemented, trivially **/
+/**
+int netd_init_group(int *ids, int count, NETD_GROUP *group);
+int netd_bcast_group(char *data, int len, int root, NETD_GROUP *group);
+int netd_reduce_group(char *src, char *result, int nelem, int op, int data_type, 
+		int root, NETD_GROUP *group);
+int netd_allreduce_group(char *src, char *result, int nelem, int op, int data_type, NETD_GROUP *group);
+int netd_barrier_group(NETD_GROUP *group);
+int netd_destroy_group(int *ids, int count, NETD_GROUP *group);
+**/
+

@@ -1,0 +1,4 @@
+ukey_pthread.o: ukey_pthread.c \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/atomic.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/machine.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/tmpi_debug.h

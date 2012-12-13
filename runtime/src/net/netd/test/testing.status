@@ -1,0 +1,5 @@
+All passed.
+Rigorous testing passed for NETD.
+StackAllocator, lock and lf doesn't show 
+significant difference for multiprogramming degree <= 2.
+

@@ -1,0 +1,39 @@
+net contains several modules.
+
+1) Raw network devices, here is one example : P4. For performance
+reasons, in many times, it is better to modify the raw device to get some
+additional functionality not given by the original source code. The P4
+has been significantly augmented and contains several bug fixes. It should
+be still compatible with old P4 programs (source level compatibility).
+
+More details can be found in README.p4
+
+2) network device interface, basically for each different raw network
+device, we need a specific wrapper for it to implement the interface
+specified by netd.h and netd_comm.h. This interface specifies a set of
+fully connected machines that you can send/recv messages/data and do
+broadcast/reduce/allreduce/barrier etc among the nodes. Only asynchronous
+receive is supported. The reason for that is that the network device
+layer is supposed to be used by the upper network queueing layer, which
+does the multiplexing itself. So netq will do wildcard receive and decode
+the message to figure out who (which netq node is the actual receiver.)
+
+More details can be found in README.netd
+
+3) network queueing system. Implement a different addressing system.
+
+NETD address is called "Machine ID" in this layer.  On each machine,
+there will be multiple NETQ nodes, each of which is actually a thread
+and has a unique NETQ address. NETQ helps these nodes to perform cross
+domain (inter-machine) communications.  Although it seems more reasonable
+to let it encapsulate a uniform interface for both inter-machine and
+intra-machine communication, I intended so because netd/netq is supposed
+to be general enough and not specifically targetted to MPI. One can freely
+choose whatever he thinks appropriate to do intra-machine (communication
+among threads sharing the same address space) communication. The need for
+netq is because a) global node address (ID) management, b) netd might
+not be multi-thread safe, c) a need for serialized data communication:
+e.g. I want to have two pieces of data to be sent contiguously.
+
+More details can be found in README.netq
+

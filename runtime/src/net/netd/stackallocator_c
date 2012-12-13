@@ -1,0 +1,165 @@
+# include <stdlib.h>
+# include "thread.h"
+# include "stackallocator.h"
+
+/* CHUNK_SIZE == 1 will break the program */
+# define CHUNK_SIZE 128
+
+int sa_init(StackAllocator *sa, int size, int max_items)
+{
+	if (thr_mtx_init(&(sa->lock)))
+		return -1;
+
+	if (max_items<=0)
+		max_items=1;
+
+	sa->maxBuffers=(max_items+CHUNK_SIZE-1)/CHUNK_SIZE;
+
+	if ((sa->buffers=calloc(sa->maxBuffers, sizeof(char *)))==NULL) {
+		thr_mtx_destroy(&(sa->lock));
+		return -1;
+	}
+
+	if (size<8) 
+		sa->size=8;
+	else 
+		sa->size=(size+7)/8*8; /* multiple of 8 */
+
+	sa->bufIdx=0;
+	sa->first=NULL;
+
+	return 0;
+}
+
+int sa_destroy(StackAllocator *sa)
+{
+	int i;
+
+	thr_mtx_destroy(&(sa->lock));
+
+	for (i=0; i<sa->bufIdx; i++)
+		if (sa->buffers[i])	 
+			free(sa->buffers[i]);
+
+	return 0;
+}
+
+void *sa_alloc(StackAllocator *sa)
+{
+	void *item;
+
+	if (thr_mtx_lock(&(sa->lock)))
+		return NULL;
+
+	if (!sa->first) {
+		Listable *block;
+		Listable *next;
+		int i;
+		int size=sa->size;
+
+		if (sa->bufIdx==sa->maxBuffers) {
+			thr_mtx_unlock(&(sa->lock));
+			return NULL;
+		}
+
+		if ((block=(Listable *)malloc(size*CHUNK_SIZE))==NULL) {
+			thr_mtx_unlock(&(sa->lock));
+			return NULL;
+		}
+
+		thr_mtx_unlock(&(sa->lock));
+
+		for (i=0, next=block; i<CHUNK_SIZE-1; i++, ((char *)next)+=size) {
+			next->next=(Listable *)(((char *)next)+size);
+		}
+
+		if (thr_mtx_lock(&(sa->lock))) {
+			free(block);
+			return NULL;
+		}
+
+		sa->buffers[sa->bufIdx++]=(char *)block;
+
+		next->next=sa->first;
+
+		sa->first=block->next;
+
+		thr_mtx_unlock(&(sa->lock));
+
+		return (void *)block;
+	}
+
+	item=(void *)sa->first;
+	sa->first=sa->first->next;
+
+	thr_mtx_unlock(&(sa->lock));
+
+	return item;
+}
+
+int sa_free(StackAllocator *sa, void *item)
+{
+	if (thr_mtx_lock(&(sa->lock)))
+		return -1;
+
+	((Listable *)item)->next=sa->first;
+	sa->first=(Listable *)item;
+	thr_mtx_unlock(&(sa->lock));
+
+	return 0;
+}
+
+static int sa_checkone(char *addr, char **buffers, int idx, int bufsize, int size)
+{
+	int i;
+
+	for (i=0; i<idx; i++) {
+		if ( (addr>=buffers[i]) && (addr<=(buffers[i]+bufsize-size)) ) {
+			if ((addr-buffers[i])%size==0)
+				return 0;
+		}
+	}
+
+	return -1;
+}
+
+int sa_check(StackAllocator *sa)
+{
+	int size=sa->size;
+	int bufsize=CHUNK_SIZE*size;
+	int count=0;
+	int idx=sa->bufIdx;
+	char **buffers=(char **)(sa->buffers);
+	Listable *item=sa->first;
+
+	while (item) {
+		count++;
+		if (sa_checkone((char *)item, buffers, idx, bufsize, size))
+			return (int)item;
+
+		item=item->next;
+	}
+
+	if (count != CHUNK_SIZE *idx)
+		return 1;
+	return 0;
+}
+
+void sa_dump(StackAllocator *sa, FILE *out)
+{
+	int i=0;
+	Listable *item=sa->first;
+	int count=0;
+
+	while (item) {
+		count++;
+		item=item->next;
+	}
+
+	fprintf(out, "Total %d buffers (%d items) allocated, each %d bytes. %d items available.\n", sa->bufIdx, sa->bufIdx*CHUNK_SIZE, sa->size, count);
+
+	for (; i<sa->bufIdx; i++)
+		fprintf(out, "[%d] addr=%p\n", i, sa->buffers[i]);
+
+	return;
+}	

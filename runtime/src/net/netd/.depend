@@ -1,0 +1,30 @@
+fifo.o: fifo.c fifo.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/thread.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/thr_def.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/ukey.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/ukey_def.h
+netd.o: netd.c \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/tmpi_debug.h \
+ netd.h netd_comm.h netd_op.h sock_sr.h sock_conn.h
+netd_op.o: netd_op.c netd_op.h
+netq.o: netq.c \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/thread.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/thr_def.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/ukey.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/ukey_def.h \
+ fifo.h stackallocator.h netq.h netq_comm.h netd_comm.h netd.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/tmpi_debug.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/atomic.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/machine.h
+sock_conn.o: sock_conn.c \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/tmpi_debug.h \
+ sock_conn.h
+sock_sr.o: sock_sr.c \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/tmpi_debug.h \
+ sock_sr.h
+stackallocator.o: stackallocator.c \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/thread.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/thr_def.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/ukey.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/ukey_def.h \
+ stackallocator.h

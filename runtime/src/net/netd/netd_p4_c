@@ -1,0 +1,440 @@
+# include <sys/param.h>
+# include <ctype.h>
+# include <unistd.h>
+# include <string.h>
+# include <stdlib.h>
+# include "p4.h"
+# include "p4_sys.h"
+# include "netd.h"
+# include "netd_comm.h"
+# include "tmpi_debug.h"
+
+# define NETD_BARRIER_TYPE 0x01010101
+# define NETD_MSG_TYPE 0x03030303
+# define NETD_BCAST_TYPE 0x05050505
+# define NETD_REDUCE_TYPE 0x07070707
+# define NETD_ALLRDC_TYPE 0x09090909
+# define NETD_DAT_TYPE 0x0b0b0b0b
+
+static int netd_msg_size=MAX_MSG_DEFAULT;
+
+static void netd_strip_out_args(char **argv, int *argc, int *c, int num);
+
+/** set the maximum message size **/
+int netd_setMsgSize(int msgsize)
+{
+	if (msgsize < MAX_MSG_DEFAULT) {
+		tmpi_error(DBG_CALLER, "message size smaller than default");
+		msgsize=MAX_MSG_DEFAULT;
+	}
+	if (netd_msg_size < msgsize) {
+		netd_msg_size=msgsize;
+	}
+
+	return 0;
+}
+
+/** get the maximum message size **/
+int netd_getMsgSize()
+{
+	return netd_msg_size;
+}
+
+/** always use user provided buffer **/
+int netd_sendmsg(int to, char *data, int len)
+{
+	return p4_send(NETD_MSG_TYPE, to, data, len);
+}
+
+/** always use user provided buffer **/
+int netd_senddat(int to, char *data, int len)
+{
+	return p4_send(NETD_DAT_TYPE, to, data, len);
+}
+
+int netd_sendmsgdat(int to, char *msg, int msglen, char *data, int datlen)
+{
+	return p4_send(NETD_MSG_TYPE, to, data, msglen);
+	return p4_send(NETD_DAT_TYPE, to, data, datlen);
+}
+
+/**
+ * receive a message envelop of size up to "size" bytes and call msg_handle
+ * with the real data and length, the buffer passed to the handle is
+ * volatile and should not be accessed after the handle returns
+ */
+int netd_recvmsg(int size, int (*msg_handle)(int, char *, int, void **result), void **result, int *status)
+{
+	int from=-1, type=NETD_MSG_TYPE, len=size;
+	char *data=NULL;
+	int ret;
+
+	if ( (ret=p4_recv(&type, &from, &data, &len)) ) {
+		tmpi_error(DBG_INTERNAL, "p4_recv error.");
+		return ret;
+	}
+	if ((from==-1) || (data==NULL) || (len>size) ) {
+		tmpi_error(DBG_INTERNAL, "Failed to reveive a good message header.");
+		return -1;
+	}
+	ret=(*msg_handle)(from, data, len, result);
+	p4_msg_free(data);
+
+	if (status) {
+		*status=ret;
+		ret=0;
+	}
+
+	return ret;
+}
+
+/** receive the data to the user provided buffer **/
+int netd_recvdat(int from, char *data, int len)
+{
+	int ret;
+	char * intern_data=NULL;
+	int intern_len=len;
+	int type=NETD_DAT_TYPE;
+
+	if (from==-1) {
+		tmpi_error(DBG_CALLER, "In netd_recvdata, need to know the source of the data.");
+		return -1;
+	}
+
+	if ( (ret=p4_recv(&type, &from, &intern_data, &intern_len)) ) {
+		tmpi_error(DBG_INTERNAL, "p4_recv error.");
+		return ret;
+	}
+
+	if (intern_data==NULL) {
+		tmpi_error(DBG_INTERNAL, "Failed to reveive data.");
+		return -1;
+	}
+
+	if (intern_len != len) {
+		if (intern_len>len) {
+			tmpi_error(DBG_WARN1, "Received data size larger than anticipated.");
+		}
+		if (intern_len<len) {
+			tmpi_error(DBG_WARN1, "Received data size less than anticipated.");
+			len=intern_len;
+		}
+	}
+
+	memcpy(data, intern_data, len);
+
+	p4_msg_free(intern_data);
+
+	return 0;
+}
+
+/** probe data **/
+int netd_canSendMsg(int to)
+{
+	/** always true **/
+	return 1;
+}
+
+int netd_canSendDat(int to)
+{
+	/** always true **/
+	return 1;
+}
+
+int netd_canRecvMsg(int from)
+{
+	int type=NETD_MSG_TYPE;
+
+	return p4_messages_available(&type, &from);
+}
+
+int netd_canRecvDat(int from)
+{
+	int type=NETD_DAT_TYPE;
+
+	return p4_messages_available(&type, &from);
+}
+
+/** group communication **/
+int netd_bcast(char *data, int len, int root)
+{
+	int myid=p4_get_my_id();
+	int total=p4_num_total_ids();
+	int ret;
+	char *intern_data=NULL;
+	int intern_len=len;
+	int intern_from=-1;
+	int intern_type=NETD_BCAST_TYPE+root;
+
+	if ( (root<0) || (root>=total) ) {
+		tmpi_error(DBG_CALLER, "invalid root id in netd_bcast.");
+		return -1;
+	}
+
+	if (myid==root) {
+		ret=p4_broadcast(NETD_BCAST_TYPE+root, data, len);
+		return ret;
+	}
+
+	/** non-root **/
+	if ( (ret=p4_recv(&intern_type, &intern_from, &intern_data, &intern_len)) ) {
+		tmpi_error(DBG_INTERNAL, "p4_recv error.");
+		return ret;
+	}
+
+	if (intern_data==NULL) {
+		tmpi_error(DBG_INTERNAL, "Failed to reveive data.");
+		return -1;
+	}
+
+	if (intern_len != len) {
+		if (intern_len>len) {
+			tmpi_error(DBG_WARN1, "Received data size larger than anticipated.");
+		}
+		if (intern_len<len) {
+			tmpi_error(DBG_WARN1, "Received data size less than anticipated.");
+			len=intern_len;
+		}
+	}
+
+	memcpy(data, intern_data, len);
+
+	p4_msg_free(intern_data);
+
+	return 0;
+}
+
+/**
+ * first dimension is the data type, second dimension is the operation
+ */
+static void (*(optable[][8]))() = {
+	{ NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL},
+	{ NULL, p4_int_absmax_op, p4_int_absmin_op, p4_int_max_op, p4_int_min_op, p4_int_mult_op, p4_int_sum_op, NULL},
+	{ NULL, p4_dbl_absmax_op, p4_dbl_absmin_op, p4_dbl_max_op, p4_dbl_min_op, p4_dbl_mult_op, p4_dbl_sum_op, NULL},
+	{ NULL, p4_flt_absmax_op, p4_flt_absmin_op, p4_flt_max_op, p4_flt_min_op, p4_flt_mult_op, p4_flt_sum_op, NULL},
+	{ NULL, p4_int_absmax_op, p4_int_absmin_op, p4_int_max_op, p4_int_min_op, p4_int_mult_op, p4_int_sum_op, NULL},
+	{ NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL}
+};
+
+static int dtypetable[]= {0, sizeof(int), sizeof(double), sizeof(float), sizeof(long), 0};
+static int p4typetable[]= {0, P4INT, P4DBL, P4FLT, P4LNG, 0};
+
+/**
+ * In MPICH, they used a send/recv to do the reduce.
+ * Here, I added p4_reduce to the P4 library.
+ */
+int netd_reduce(char *src, char *result, int nelem, int rdc_op, int data_type, int root)
+{
+	int data_size=dtypetable[data_type];
+	int p4_type=p4typetable[data_type];
+	void (*op)()=optable[data_type][rdc_op];
+
+	if ( (data_size==0)||(op==(void(*)())NULL) ) {
+		tmpi_error(DBG_CALLER, "Invalid operation or data type in reduce.");
+		return -1;
+	}
+
+	memcpy(result, src, nelem*data_size);
+	return p4_reduce(NETD_REDUCE_TYPE+root, result, nelem, data_size, op, p4_type, root);
+}
+
+int netd_allreduce(char *src, char *result, int nelem, int rdc_op, int data_type)
+{
+	int data_size=dtypetable[data_type];
+	int p4_type=p4typetable[data_type];
+	void (*op)()=optable[data_type][rdc_op];
+
+	if ( (data_size==0)||((void(*)())op==NULL) ) {
+		tmpi_error(DBG_CALLER, "Invalid operation or data type in allreduce.");
+		return -1;
+	}
+
+	memcpy(result, src, nelem*data_size);
+	return p4_global_op(NETD_ALLRDC_TYPE, result, nelem, data_size, op, p4_type);
+}
+
+/** barrier **/
+int netd_barrier()
+{
+	p4_global_barrier(NETD_BARRIER_TYPE);
+
+	return 0;
+}
+
+static char login[128];
+static char fullpath[1024];
+
+/**
+ * netd_start() should honor the passed in mac_list,
+ * it should not consider netd or lower level machine
+ * list if mac_list is not zero.
+ *
+ * For raw devices that only allow internally managed
+ * process group, it might be impossible to provide
+ * such an interface without changing the device.
+ *
+ * The last machine in the machine list has to have -1
+ * in nProcs field.
+ *
+ * For this implementation, we need to have the first entry of
+ * hostname=local. (And all nProcs=1, but it is not enforced
+ * by netd). 
+ *
+ * For slaves, mac_list will indeed be NULL, which will not be
+ * a problem because it will return immediately after 
+ */
+int netd_start(Machine *mac_list)
+{
+	if (!p4_am_i_startup_master())
+		return 0;
+
+	if (mac_list==NULL)
+		return p4_create_procgroup();
+	else {
+		/** 
+		 * construct a p4_procgroup structre 
+		 * and call p4_startup
+		 */
+		int i=0;
+		struct p4_procgroup *pg=p4_alloc_procgroup();
+
+		while (mac_list[i].nProcs!=-1)
+			i++;
+		
+		pg->num_entries=i;
+
+		/**
+		 * check if the first entry is local
+		 * and nProcs=0.
+		 */
+		if (strcmp(mac_list[0].szHost, "local")!=0) {
+			tmpi_error(DBG_WARN1, "The first entry of machine list must be \"local\".");
+			strcpy(mac_list[0].szHost, "local");
+		}
+
+		if (mac_list[0].nProcs<=0) {
+			tmpi_error(DBG_WARN1, "Should not exclude the startup master from the nProcs field"
+					" in local machine entry.");
+			mac_list[0].nProcs=1;
+		}
+
+		for (i=0; i<pg->num_entries; i++) {
+			struct p4_procgroup_entry *pe=&(pg->entries[i]);
+
+			strcpy(pe->host_name, mac_list[i].szHost);
+
+			if (strcmp(pe->host_name, "local")==0)
+				pe->numslaves_in_group=mac_list[i].nProcs-1;
+			else
+				pe->numslaves_in_group=mac_list[i].nProcs;
+
+			strcpy(pe->slave_full_pathname, fullpath);
+			strcpy(pe->username, login);
+		}
+		
+		return p4_startup(pg);
+	}
+}
+
+int netd_getMyID()
+{
+	return p4_get_my_id();
+}
+
+int netd_getSize()
+{
+	return p4_num_total_ids();
+}
+
+int netd_amIStartupMaster()
+{
+	return p4_am_i_startup_master();
+}
+
+int netd_initEnv(int *argc, char **(*argv), Machine **pmac_list)
+{
+	/**
+	 * For P4, we remember the machine settings internally,
+	 * so we do not return a machine list.
+	 * 
+	 * For those raw net devices that require external machine list,
+	 * we can put a netd option in the command line and create
+	 * a machine list and return back to the upper layer, which
+	 * can use it in netd_start(). Althernatively, the upper
+	 * layer can choose to manage machine list by itself,
+	 * in that case, it can just set pmac_list to be NULL.
+	 */
+	
+	int i, ret;
+
+	/**
+	 * Insert CWD option here? -netcwd <path>
+	 */
+
+	if ( (ret=p4_initenv(argc, *argv)) ) {
+		tmpi_error(DBG_INTERNAL, "P4 initEnv failed.");
+		return ret;
+	}
+
+	/**
+	 * tmpi_error(DBG_INFO, "argv[0]=%s", (*argv)[0]);
+	 */
+
+	/**
+	 * strip off netd specific flags
+	 */
+	for (i=*argc; i>0; i--) { 
+		/** dbg level options **/
+		if (strcmp((*argv)[i-1], NETD_DBGOPT)==0) {
+			int dbglev;
+
+			if (isdigit((*argv)[i][0]))
+				dbglev=atoi((*argv)[i]);
+			else {
+				tmpi_error(DBG_APP, "Fail to get an integer debug level after -netdbg.");
+				dbglev=DBG_ALL;
+			}
+			tmpi_set_dbg_level(dbglev);
+			netd_strip_out_args((*argv)+(i-1), argc, &i, 2);
+
+			tmpi_error(DBG_INFO, "Set debug level = %d.", dbglev); 
+		}
+	}
+
+	if (p4_am_i_startup_master()) {
+		if (pmac_list)
+			*pmac_list=NULL;
+	
+		strcpy(login, getlogin());
+		if (realpath((*argv)[0], fullpath)==NULL) {
+			tmpi_error(DBG_WARN2, "Cannot get full path name of the program, use argv[0] instead.");
+			strcpy(fullpath, (*argv)[0]);
+		}
+	}
+	else 
+		strcpy(fullpath, (*argv)[0]); /* actually it is not the full path of the program */
+	return  0;
+}
+
+void netd_waitAll()
+{
+	p4_wait_for_end();
+}
+
+
+static void netd_strip_out_args(char **argv, int *argc, int *c, int num)
+{
+    char **a;
+    int i;
+
+    /* Strip out the argument. */
+    for (a = argv, i = (*c); i <= *argc-num; i++, a++)
+		*a = (*(a + num));
+	*a=NULL;
+    (*argc) -= num;
+}
+
+char *netd_getProgPathName()
+{
+	return fullpath;
+}

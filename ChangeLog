@@ -1,0 +1,11 @@
+Known Bugs:
+1. There is a subtle deadlock problem that might happen under
+certain situations.
+2. The semantics of cancel is slightly different.
+
+========================================
+Please visit our web site at:
+
+http://www.cs.ucsb.edu/projects/tmpi/
+
+for bug fixes and updates.

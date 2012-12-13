@@ -1,0 +1,45 @@
+#!/usr/bin/perl
+if ($#ARGV<0)
+{
+	print <<EOF;
+Usage : grptr <tmpi_grp> [<mpi_exe>].
+"grptr" translate the TMPI group file to its P4 and MPI equivalences.
+EOF
+	exit (-1);
+}
+
+$grpfile=$ARGV[0];
+if (!($grpfile =~ /\.grp$/)) {
+	$grpfile.=".grp";
+}
+
+$mpigrp = $grpfile;
+$p4grp = $grpfile;
+$mpigrp =~ s/\.grp$/.mpi.mgp/;
+$p4grp =~ s/\.grp$/.mpi.pg/;
+
+if ($#ARGV>=1) {
+	$exe=$ARGV[1];
+}
+else {
+	$exe=$grpfile;
+	$exe=~ s/\.grp$/.mpi/;
+}
+
+$cwd=`pwd`;
+chomp($cwd);
+$exe="$cwd/$exe";
+
+open (GRPFILE, "<$grpfile") or die "Cannot open TMPI group file.";
+open (MPIGRP, ">$mpigrp") or die "Cannot write to MPICH group file.";
+open (P4GRP, ">$p4grp") or die "Cannot write to P4 group file.";
+
+while (<GRPFILE>) {
+	chomp($_);
+	my @tokens=split(/ +/, $_);
+	if ($tokens[0] eq "local" ) {
+		$tokens[1]--;
+	}
+	print MPIGRP "$tokens[0]:$tokens[1]\n";
+	print P4GRP "$tokens[0] $tokens[1] $exe\n";
+}

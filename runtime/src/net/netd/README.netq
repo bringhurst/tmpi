@@ -1,0 +1,15 @@
+I haven't finished netq_p4.c yet. A server problem in P4 rendered my
+current design futile. Because the group communication will interfere
+with pt2pt communication.
+
+I am consider a netd device that contains two sets of sockets, one set
+for pt2pt and the other for group. Nice thing about it is that I need
+no type information by taking advantage of separate channels. (Am I right?)
+NETD is still not mt safe. So you need lock to do send.
+
+The send queue is disabled for this version of NETQ. It is likely that
+different nodes is going to use different ports to send data, so having
+a thread sequentializing the send request could reduce the achievable 
+bandwidth. I just need to tune the threshold of short message size to
+make sure that the sending process will not block due to buffering
+problem.

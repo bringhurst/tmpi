@@ -1,0 +1,29 @@
+Modify Makefile.common for the optimization options or directory settings.
+
+Build is a file used to record the last build time. 
+
+I have made a static library and a dynamic library for the same tmpi
+library.  To make dynamic library work, we need to set two environment
+variables to the directory where the dynamic library can be found:
+LD_LIBRARY_PATH and LIBRARY_PATH (the first is used during the execution
+and the second is used during the compilation so that you don't have to
+specify -L...)
+
+You might also need to update ~/.ssh/environment and put the values of
+these two variables in the form of VARIABLE=VALUE in which VALUE cannot
+have any $Var variables in it. (not very portable)
+
+To link with static library, use -static option and you need to add
+-lpthread if the underlying ukey and thread module is based on pthread.
+
+To compile sources that is supposed to be linked with TMPI library,
+add -I<tmpi_include> option when compiling the source code.
+
+Directories
+	bin/  		: utilities for MPI program execution.
+	etc/  		: runtime environment configuration.
+	include/  	: user library API include files.
+	lib/ 		: user libraries.
+	src/ 		: source code tree.
+	test/		: test suites.
+

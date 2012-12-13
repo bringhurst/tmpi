@@ -1,0 +1,2 @@
+atomic.o: atomic.c tmpi_i386.h
+x86_cpu.o: x86_cpu.c

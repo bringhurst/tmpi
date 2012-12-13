@@ -1,0 +1,31 @@
+comm.o: comm.c \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/mpi_struct.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/tmpi_name.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/tmpi_struct.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/mpi_def.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/thread.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/thr_def.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/ukey.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/ukey_def.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/netq.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/tqueue.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/barrier.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/bcast.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/reduce.h \
+ comm.h /home/research_home/htang/mpi/tmpi/runtime/src/include/mpi.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/mpi_func.h
+group.o: group.c \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/mpi_def.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/mpi_struct.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/tmpi_name.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/tmpi_struct.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/thread.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/thr_def.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/ukey.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/ukey_def.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/netq.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/tqueue.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/barrier.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/bcast.h \
+ /home/research_home/htang/mpi/tmpi/runtime/src/include/reduce.h \
+ comm.h

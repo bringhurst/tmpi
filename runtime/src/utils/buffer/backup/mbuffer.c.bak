@@ -1,0 +1,318 @@
+/* 
+ * mbuffer.c -- message buffer management
+ * In this version, each thread only access a piece of dedicated buffer.
+ * Mutual exclusion is still necessary.
+ */
+
+# define _REENTRANT
+# include <stdlib.h>
+# include "struct.h"
+# include "ukey.h"
+# include "twait.h"
+# include "lock.h"
+# include "root.h"
+# include "anl_shmem.h"
+
+/* Alignment must be a power of 2 */
+#define Alignment 32
+#define AlignmentMask 0xffffffe0
+#define AdjustSize(x) (((x) + Alignment - 1) & AlignmentMask)	/* x must 32-bit */
+/*
+#define MARK
+*/
+
+/**
+ * The size field of BufferHandle has been changed to reflect the size of 
+ * the whole buffer instead of the user seen buffer (which does not include
+ * the size of the handle). 
+ */
+
+/* buffer handle */
+typedef struct BufferHandle {
+  struct BufferHandle *pre;
+  struct BufferHandle *next;
+  int free;
+  unsigned size;
+} BufferHandle;
+
+#define BUF_HEADER_SIZE (AdjustSize(sizeof(BufferHandle)))
+
+#define MinFragment (BUF_HEADER_SIZE+64)
+
+static BufferHandle **SysBuffer, **UsrBuffer;
+
+#if (_LOCK_)
+/*static int *BufferLock; */
+#endif
+
+/* message buffer initialization by whole system */
+void mb_global_init(int nproc) {
+  SysBuffer = (BufferHandle**) anl_malloc (ROOT_ID, sizeof(BufferHandle*)*nproc);
+  UsrBuffer = (BufferHandle**) anl_malloc (ROOT_ID, sizeof(BufferHandle*)*nproc);
+
+#if (_LOCK_)
+  /*  BufferLock = (int*) anl_malloc (ROOT_ID, sizeof(int)*nproc); */
+#endif  
+}
+
+/* message buffer initialization by each thread */
+void mb_init(int myid, int bsize) {
+#ifdef MARK
+  char* buf = (char*)anl_malloc (myid, bsize); 
+  SysBuffer[myid] = (BufferHandle*)(buf + Alignment);
+  *(BufferHandle**)buf = SysBuffer[myid];
+#else  
+  SysBuffer[myid] = (BufferHandle*) anl_malloc (myid, bsize); 
+#endif
+
+# if (_DEBUG_)
+  if (myid!=ukey_getid())
+    fprintf(stderr, "caller uses wrong id\n");
+  if (SysBuffer[myid]==NULL) 
+    fprintf(stderr, "message buffer init failed\n");
+# endif
+
+  SysBuffer[myid]->pre = NULL;
+  SysBuffer[myid]->next = NULL;
+  SysBuffer[myid]->free = True;
+#ifdef MARK
+  SysBuffer[myid]->size = bsize - Alignment;
+#else
+  SysBuffer[myid]->size = bsize;
+#endif
+
+  UsrBuffer[myid] = NULL;
+
+#if (_LOCK_)
+  /*  lock_init(BufferLock + myid); */
+#endif
+}
+
+/* attach user defined buffer, implement MPI_Buffer_attach */
+int thrMPI_Buffer_attach(void *buf, int bsize) {
+  int myid=ukey_getid();
+
+  if (UsrBuffer[myid] != NULL) return MPI_ERR_BUFFER;
+
+#if (_LOCK_)
+  /*  lock(BufferLock + myid); */
+#endif
+
+#ifdef MARK
+  UsrBuffer[myid] = (BufferHandle*)(((char*)buf) + Alignment);
+  *(BufferHandle**)buf = UsrBuffer[myid];
+#else
+  UsrBuffer[myid] = (BufferHandle*) buf;
+#endif
+  UsrBuffer[myid]->pre = NULL;
+  UsrBuffer[myid]->next = NULL;
+  UsrBuffer[myid]->free = True;
+#ifdef MARK
+  UsrBuffer[myid]->size = bsize - Alignment;
+#else
+  UsrBuffer[myid]->size = bsize;
+#endif
+
+#if (_LOCK_)
+  /*  unlock(BufferLock + myid); */
+#endif
+
+  return MPI_SUCCESS;
+}
+
+/* detach user defined buffer, implement MPI_Buffer_detach */
+int thrMPI_Buffer_detach(void *buf, int *bsize) {
+  int myid=ukey_getid();
+  
+  user_GC(myid); /* garbage collection */
+
+  if (UsrBuffer[myid]==NULL) return MPI_ERR_BUFFER;
+
+#ifdef MARK
+  *((BufferHandle**)buf) = (BufferHandle*)(((char*)UsrBuffer[myid]) - Alignment);
+  *bsize = UsrBuffer[myid]->size + Alignment;
+#else
+  *((BufferHandle**)buf) = UsrBuffer[myid];
+  *bsize = UsrBuffer[myid]->size;
+#endif
+
+  if ( (UsrBuffer[myid]->free == False) || (UsrBuffer[myid]->next!=NULL) )
+    return MPI_ERR_INTERN;
+  else {
+    UsrBuffer[myid] = NULL;
+    return MPI_SUCCESS;
+  }
+}
+
+#if (_MBUFFER_)
+
+/* buffer allocation */
+void *mb_alloc(int myid, unsigned isize) {
+  register BufferHandle *tmp, *tmpnext;
+  register unsigned adjusted_size;
+#ifdef MARK
+  int done;
+  BufferHandle** _SysStart = (BufferHandle**)(((char*)SysBuffer[myid]) - Alignment);
+  BufferHandle** _UsrStart;
+#endif
+
+# if (_DEBUG_)
+  if (myid!=ukey_getid())
+    fprintf(stderr, "caller uses wrong id\n");
+# endif
+
+  adjusted_size = AdjustSize(isize) + BUF_HEADER_SIZE; 
+
+#if (_LOCK_)
+  /*  lock(BufferLock + myid); */
+#endif
+
+#ifdef MARK
+  tmp = *_SysStart; 
+  done = 0;
+  do {
+    if (tmp->free==True && tmp->size>=adjusted_size) {
+      done = 1;
+      break;
+    }
+    tmp = tmp->next;
+    if (!tmp) tmp = SysBuffer[myid]; 
+  } while (tmp != *_SysStart);
+  *_SysStart = tmp;
+
+  if (!done && UsrBuffer[myid]!=NULL) {
+    _UsrStart = (BufferHandle**)(((char*)UsrBuffer[myid]) - Alignment);
+    tmp = *_UsrStart;
+    do {
+      if (tmp->free==True && tmp->size>=adjusted_size) {
+	done = 1;
+	break;
+      }
+      tmp = tmp->next;
+      if (!tmp) tmp = UsrBuffer[myid];
+    } while (tmp != *_UsrStart);
+    *_UsrStart = tmp;
+  }
+
+  if (!done) {
+#else
+  tmp = SysBuffer[myid]; 
+  while (tmp!=NULL && (tmp->free==False || tmp->size<adjusted_size)) 
+    tmp = tmp->next;
+
+  if (tmp==NULL && UsrBuffer[myid]!=NULL) {
+    tmp = UsrBuffer[myid];
+    while (tmp!=NULL && (tmp->free==False || tmp->size<adjusted_size)) 
+      tmp = tmp->next;
+  }
+
+  if (tmp==NULL) {
+#endif
+
+# if (_LOCK_)
+    /*    unlock(BufferLock + myid); */
+# endif
+
+# if (_DEBUG_)
+    fprintf(stderr, "buffer allocation failed\n");
+# endif
+    return NULL;
+  }
+
+  tmp->free = False;
+
+  if (tmp->size >= adjusted_size + MinFragment) { /* need split */
+    tmpnext = (BufferHandle*)(((char*)tmp)+adjusted_size);
+    tmpnext->pre = tmp;
+    tmpnext->next = tmp->next;
+	if (tmpnext->next)
+		tmpnext->next->pre=tmpnext;
+    tmpnext->free = True;
+    tmpnext->size = tmp->size-adjusted_size;
+
+    tmp->size = adjusted_size;
+    tmp->next = tmpnext;
+  }
+
+# if (_LOCK_)
+  /*  unlock(BufferLock + myid); */
+# endif
+
+  return (((char*)tmp)+BUF_HEADER_SIZE);
+}
+
+/* free an buffer for other process */
+void mb_free_other(int myid, void* item) {
+  ((BufferHandle*)(((char*)item)-BUF_HEADER_SIZE))->free = True;
+}
+
+/* free an allocated buffer */
+void mb_free(int myid, void* item) {
+  register BufferHandle *bh = (BufferHandle*)(((char*)item)-BUF_HEADER_SIZE);
+
+# if (_DEBUG_)
+
+  if (ukey_getid()!=myid) {
+    fprintf(stderr, "mb_free: invalid myid\n");
+    return;
+  }
+
+  if (bh->free==True) {
+    fprintf(stderr, "mb_free: attempting to free a freed buffer\n");
+    return;
+  }
+# endif
+
+# if (_LOCK_)
+  /*  lock(BufferLock + myid); */
+# endif
+
+  if (bh->next && bh->next->free==True) {
+    if (bh->pre && bh->pre->free==True) {
+      bh->pre->size += bh->size + bh->next->size;
+      bh->pre->next = bh->next->next;
+      if (bh->next->next)
+	bh->next->next->pre=bh->pre;
+    }
+    else {
+      bh->free = True;
+      bh->size += bh->next->size;
+      bh->next = bh->next->next;
+      if (bh->next)
+	bh->next->pre = bh;
+    }
+
+#ifdef MARK
+    *(BufferHandle**)(((char*)SysBuffer[myid]) - Alignment) = SysBuffer[myid];
+    if (UsrBuffer[myid])
+      *(BufferHandle**)(((char*)UsrBuffer[myid]) - Alignment) = UsrBuffer[myid];
+#endif
+  }
+  else {
+    if (bh->pre && bh->pre->free==True) {
+      bh->pre->size += bh->size;
+      bh->pre->next = bh->next;
+      if (bh->next)
+	bh->next->pre=bh->pre;
+    }
+    else
+      bh->free = True;
+  }
+
+#if (_LOCK_)
+  /*  unlock(BufferLock + myid);*/
+#endif
+}
+
+#else
+
+ void *mb_alloc(int myid, unsigned isize) {
+   return malloc(isize);
+ }
+
+/* free an allocated buffer */
+void mb_free(int myid, void* item) {
+  free(item);
+}
+
+#endif
